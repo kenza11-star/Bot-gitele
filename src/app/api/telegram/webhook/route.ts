@@ -1,40 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadEnv } from "@/lib/env";
+import { claimUpdate, finishUpdate } from "@/lib/telegram/update-claims";
 import { verifyTelegramSecret } from "@/lib/telegram/webhook-auth";
-import { sendMessage } from "@/lib/telegram/api";
-import { HELP_TEXT, UNKNOWN_TEXT, WELCOME_TEXT } from "@/lib/telegram/messages";
+import { handleMessage } from "@/lib/telegram/handlers";
+import { handleCallback } from "@/lib/telegram/callbacks";
+import type { TgUpdate } from "@/lib/telegram/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-interface TelegramUpdate {
-  update_id: number;
-  message?: { chat: { id: number }; from?: { id: number }; text?: string };
-}
+// Uploads and GitHub commits can take a while. Raise this if your Vercel plan allows it.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const env = loadEnv();
 
-  if (!verifyTelegramSecret(req.headers.get("x-telegram-bot-api-secret-token"), env.telegramWebhookSecret)) {
+  if (
+    !verifyTelegramSecret(
+      req.headers.get("x-telegram-bot-api-secret-token"),
+      env.telegramWebhookSecret,
+    )
+  ) {
     return new NextResponse("unauthorized", { status: 401 });
   }
 
-  const update = (await req.json().catch(() => null)) as TelegramUpdate | null;
-  const message = update?.message;
-  if (!message?.text || !message.from) {
+  const update = (await req.json().catch(() => null)) as TgUpdate | null;
+  if (!update || !Number.isSafeInteger(update.update_id)) {
     return NextResponse.json({ ok: true });
   }
 
-  const command = message.text.trim().split(/\s+/)[0].split("@")[0].toLowerCase();
-  const chatId = message.chat.id;
+  const claim = await claimUpdate(update.update_id);
+  if (claim.kind === "completed") return NextResponse.json({ ok: true });
+  if (claim.kind === "busy")
+    return NextResponse.json(
+      { ok: false },
+      { status: 503, headers: { "retry-after": "30" } },
+    );
 
-  if (command === "/start") {
-    await sendMessage(env.telegramBotToken, chatId, WELCOME_TEXT);
-  } else if (command === "/help") {
-    await sendMessage(env.telegramBotToken, chatId, HELP_TEXT);
-  } else if (command.startsWith("/")) {
-    await sendMessage(env.telegramBotToken, chatId, UNKNOWN_TEXT);
+  try {
+    if (update.callback_query) {
+      await handleCallback(update.callback_query, env);
+    } else if (update.message) {
+      await handleMessage(update.message, env);
+    }
+  } catch (err) {
+    await finishUpdate(update.update_id, claim.token, false).catch(
+      () => undefined,
+    );
+    console.error(
+      "telegram update failed",
+      err instanceof Error ? err.name : "unknown",
+    );
+    return NextResponse.json(
+      { ok: false },
+      { status: 503, headers: { "retry-after": "30" } },
+    );
   }
 
+  if (!(await finishUpdate(update.update_id, claim.token, true)))
+    return NextResponse.json({ ok: false }, { status: 503 });
   return NextResponse.json({ ok: true });
 }
