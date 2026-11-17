@@ -1,6 +1,6 @@
 # Production deployment — GitHub Manager Bot V2
 
-This guide targets **https://bot-xsync-delta.vercel.app**. The release contains the complete application and worker. Infrastructure must be deployed and tested before the bot can be considered operational. No production credentials are included, requested or printed by the activation CLI.
+This guide targets **https://bot-xsync-delta.vercel.app**. The release contains the complete application and the GitHub Actions processor (no always-on worker; see `ACTIONS-DEPLOYMENT.md`, which supersedes the worker steps here). Infrastructure must be deployed and tested before the bot can be considered operational. No production credentials are included, requested or printed by the activation CLI.
 
 ## 1. Source, build and Vercel root directory
 
@@ -21,7 +21,7 @@ npm test
 npm run build
 ```
 
-`npm start` serves a built application locally. `npm run worker` is the separate background process, not a Next.js request handler.
+`npm start` serves a built application locally. ZIP processing runs in GitHub Actions via `npm run worker:actions` (also `worker:once`, `worker:check`); it is not a Next.js request handler and not a permanent process.
 
 The production routes implemented by this release are:
 
@@ -37,7 +37,7 @@ An empty GET to the callback must return **400**, not 404. GET to the POST-only 
 
 ## 2. Existing ENV names — preserve values securely
 
-Set the existing **Production** Vercel environment and the worker's private environment to the corresponding current values. No variable was renamed:
+Set the existing **Production** Vercel environment, and the matching GitHub Actions secrets (`GITHUB_*` names are mapped to `GH_*`, see `ACTIONS-DEPLOYMENT.md`), to the corresponding current values. No variable was renamed:
 
 | Variable | Use |
 | --- | --- |
@@ -61,13 +61,13 @@ Optional `CRON_SECRET` and `DATABASE_CA_CERT` keep their names. Use a long unpre
 
 `DATABASE_CA_CERT` can provide a PEM CA chain when the default trust store cannot verify your PostgreSQL endpoint. Database TLS always verifies certificates. URL SSL query options, including `ssl=false`, cannot override this setting. Connection/query timeouts are bounded.
 
-The worker/activation CLI can load a protected environment file through Node:
+The processor/activation CLI can load a protected environment file through Node when you run it by hand on a trusted machine:
 
 ```sh
-node --env-file=.env.worker --import tsx src/worker.ts --check
+node --env-file=.env.local --import tsx src/worker.ts --check
 ```
 
-`.env.worker` is excluded from Git and Docker context. Create it privately from `.env.example`, fill existing values on the host and set mode 0600. Do not send the file or its contents to someone else.
+`.env*` files (except `.env.example`) are excluded from Git. Create the file privately from `.env.example`, fill existing values and set mode 0600. Do not send the file or its contents to someone else. In production the same values live only in Vercel and GitHub Actions secrets.
 
 ## 3. Supabase SQL migration order
 
@@ -75,17 +75,19 @@ Back up the production database using your existing process before changing its 
 
 | Current database state | Apply |
 | --- | --- |
-| Fresh database | 0001 through 0007, in order |
+| Fresh database | 0001 through 0008, in order |
 | Stage 2 through 0004 | 0005, 0006, 0007 |
 | Stage 2.5 through 0005 | 0006, 0007 |
-| Stage 3 through 0006 | **0007_production_hardening.sql only** |
+| Stage 3 through 0006 | 0007, 0008 |
+| Through 0007 | **0008_actions_worker.sql only** (additive: dispatch/run columns, retry counter, recovery index) |
 
-Do not replay 0001–0003 on an existing database. 0004–0007 are re-runnable; the final release's 0007 adds session revocation versions, webhook delivery claims and worker heartbeat state. Existing users, encrypted credentials, jobs and files are preserved. Existing processed-update records default to completed so historical messages are not processed again.
+Do not replay 0001–0003 on an existing database. 0004–0008 are re-runnable; the final release's 0007 adds session revocation versions, webhook delivery claims and worker heartbeat state. Existing users, encrypted credentials, jobs and files are preserved. Existing processed-update records default to completed so historical messages are not processed again.
 
 For the supplied Stage 3 database, from a trusted administrator shell with PostgreSQL client installed:
 
 ```sh
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0007_production_hardening.sql
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0008_actions_worker.sql
 ```
 
 For a **fresh, empty** database only:
@@ -98,9 +100,10 @@ psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0004_upload_jobs.sql
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0005_upload_safety.sql
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0006_github_processing.sql
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0007_production_hardening.sql
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f db/migrations/0008_actions_worker.sql
 ```
 
-0004–0007 already contain transaction boundaries. You can use Supabase SQL Editor to execute the same files in order. If historical duplicate GitHub account ownership blocks 0002's unique index, resolve ownership explicitly; do not delete identities automatically. The private `app` schema must not be exposed or granted to anonymous browser roles. All application tables are RLS-enabled; the server/worker uses the existing appropriately privileged database role.
+0004–0008 already contain transaction boundaries. You can use Supabase SQL Editor to execute the same files in order. If historical duplicate GitHub account ownership blocks 0002's unique index, resolve ownership explicitly; do not delete identities automatically. The private `app` schema must not be exposed or granted to anonymous browser roles. All application tables are RLS-enabled; the server/worker uses the existing appropriately privileged database role.
 
 Safe inspection:
 
@@ -108,6 +111,7 @@ Safe inspection:
 select upload_session_version from app.telegram_users limit 0;
 select processing_status, lease_until from app.processed_updates limit 0;
 select to_regclass('app.upload_job_files'), to_regclass('app.worker_heartbeats');
+select dispatched_at, actions_run_id, retry_count from app.upload_jobs limit 0;
 select c.relname, c.relrowsecurity
 from pg_class c join pg_namespace n on n.oid=c.relnamespace
 where n.nspname='app' and c.relkind='r';
@@ -137,27 +141,19 @@ The server checks user installation access at selection and processing/publicati
 
 Use `/repos` to select an authorized repository, `/branch` to list up to 30 branches, and `/branch feature/name` to select an existing branch. Both browser and direct Telegram upload now use the selected branch. Existing upload links remain bound to their original repository/branch.
 
-## 6. Background worker — required
+## 6. GitHub Actions processor — required
 
-Deploy the updated worker before activating the webhook. Reuse `Dockerfile.worker`, `compose.worker.yaml` or `deploy/github-manager-worker.service`. Run on an always-on Node host, not a Vercel Function that exits or scales to zero between requests.
+ZIP processing runs in `.github/workflows/process-uploads.yml` in repository `kenza11-star/Bot-gitele`. There is no always-on worker, Docker host or systemd unit. Complete steps (Actions secrets, optional `ACTIONS_DISPATCH_TOKEN`, limits) are in **`docs/ACTIONS-DEPLOYMENT.md`**; do them before activating the webhook.
 
-```sh
-node --env-file=.env.worker --import tsx src/worker.ts --check
-node --env-file=.env.worker --import tsx src/worker.ts
-```
-
-Docker alternative:
+Manual commands, with the production environment loaded on a trusted machine:
 
 ```sh
-docker compose -f compose.worker.yaml build
-docker compose -f compose.worker.yaml run --rm worker node --import tsx src/worker.ts --check
-docker compose -f compose.worker.yaml up -d
-docker compose -f compose.worker.yaml logs -f worker
+npm run worker:check    # configuration + schema check
+npm run worker:once     # process at most one job
+npm run worker:actions  # drain the queue, then exit
 ```
 
-Node 24 and the existing values are sufficient; no new worker credentials or public endpoint are required. Start with the documented 2 GiB worker allocation and measure your workload. Default worker mode updates a database heartbeat every 15 seconds; protected readiness requires a heartbeat within 60 seconds. `--once` is a batch/debug entry point and does not advertise a continuously available worker.
-
-Lease recovery, immutable blob checkpoints, deterministic commits, non-forced publication and at-least-once Telegram delivery are described in `STAGE3-DEPLOYMENT.md`; deployment prerequisites in this final guide supersede Stage 3's migration instructions.
+Without `ACTIONS_DISPATCH_TOKEN`, queued jobs are picked up by the 30-minute scheduled sweep (best effort, can be delayed). Lease recovery, immutable blob checkpoints, deterministic commits, non-forced publication and at-least-once Telegram delivery are described in `STAGE3-DEPLOYMENT.md`.
 
 ## 7. Telegram activation — executable and safe
 
@@ -174,13 +170,13 @@ npm run telegram:activate -- --dry-run
 With the existing environment loaded on a trusted host, verify an existing registration without changing it:
 
 ```sh
-node --env-file=.env.worker --import tsx scripts/telegram-activate.ts --check
+node --env-file=.env.local --import tsx scripts/telegram-activate.ts --check
 ```
 
-Register/update after app, migrations, private bucket and worker are ready:
+Register/update after app, migrations, private bucket and Actions secrets are ready (or use the *Aktivasi webhook Telegram* workflow):
 
 ```sh
-node --env-file=.env.worker --import tsx scripts/telegram-activate.ts
+node --env-file=.env.local --import tsx scripts/telegram-activate.ts
 ```
 
 Equivalent with variables already provided by a service manager:
@@ -215,33 +211,33 @@ Use a non-admin Telegram account and a small test repository first:
 7. Try a second public account: it must not select the first account's private repo or inspect its jobs. `/admin` must be restricted.
 8. `/actions`, `/apk` with an artifact APK, then with a release APK. Oversized, expired or missing files must produce a clear response.
 9. `/status`, `/logout`, old-link rejection, and reauthentication.
-10. Test an actual 100 MiB ZIP on the worker host after the small case passes. Restart the worker mid-processing and check recovery. Confirm the final branch and Telegram notice before calling the installation operational.
+10. Test an actual 100 MiB ZIP after the small case passes. Cancel a running Actions run mid-processing and check that the next run resumes from the checkpoint. Confirm the final branch and Telegram notice before calling the installation operational.
 
 Local integration tests use controlled remote responses; they do not replace this live acceptance test.
 
 ## 9. Monitoring and cleanup
 
 - Poll public `/api/health` for application liveness. Use the activation `--check` command from a trusted environment for readiness and current webhook URL; never put the readiness secret in a URL or public monitor.
-- Inspect Vercel errors/status and worker process restarts. The final release logs failure class/job ID, not credentials or request bodies.
+- Inspect Vercel errors/status and the GitHub Actions run history of `process-uploads.yml`. The final release logs failure class/job ID, not credentials or request bodies.
 - Inspect `getWebhookInfo` via `--check` for pending update growth and delivery-error timestamps.
-- Query PostgreSQL privately for stale worker heartbeats, expired leases, retry delays, failed jobs and undelivered terminal notices. Do not expose these tables publicly.
+- Query PostgreSQL privately for expired leases, undispatched jobs (`dispatch_error`), retry delays, failed jobs and undelivered terminal notices. Do not expose these tables publicly.
 
 ```sql
-select last_seen_at from app.worker_heartbeats order by last_seen_at desc;
+select id, status, dispatched_at, dispatch_error, actions_run_id from app.upload_jobs order by created_at desc limit 20;
 select status, processing_stage, count(*) from app.upload_jobs group by status, processing_stage;
 select id, status, lease_until, next_attempt_at
 from app.upload_jobs where status in ('uploaded','processing') order by created_at;
 ```
 
-The worker processes queues continuously and attempts upload cleanup every minute. Optional `CRON_SECRET` enables the retained daily cleanup endpoint at `/api/cron/cleanup`. Failed Storage deletion is retried. Signed URL safety windows and source retention remain intact. Completed/failed job metadata is retained after source-object cleanup.
+Each Actions run drains the queue before exiting. Optional `CRON_SECRET` enables the retained daily cleanup endpoint at `/api/cron/cleanup`. Failed Storage deletion is retried. Signed URL safety windows and source retention remain intact. Completed/failed job metadata is retained after source-object cleanup.
 
 ## 10. Limits and operational status
 
 The actual Vercel account/settings could not be inspected due to API **403 forbidden**. The public domain was reachable during this audit, but `/upload` and `/github/callback` returned **404** on the currently deployed version. Deploy this final source at the correct root before activation. Do not treat the existing root page or a GET 405 on the webhook as proof that the full bot is deployed.
 
-No production Supabase/GitHub/Telegram authenticated calls, Docker deployment, migration execution or real phone/in-app browser test were performed. A working bot requires Vercel, PostgreSQL, private Storage, GitHub, Telegram and the worker to remain operational; no uptime guarantee is fabricated.
+No production Supabase/GitHub/Telegram authenticated calls, migration execution or real phone/in-app browser test were performed. A working bot requires Vercel, PostgreSQL, private Storage, GitHub, Telegram and GitHub Actions to remain operational; no uptime guarantee is fabricated.
 
-Browser jobs support 100 MiB ZIPs, 20,000 files and 300 MiB expanded data with existing anti-bomb limits. ZIP64/encrypted archives, unsupported compression and symlinks are rejected explicitly. The worker uses bounded buffering, not constant-memory streaming. API quotas can defer jobs; the original source retention is finite. Direct Telegram uploads retain the 20 MiB download path and are synchronous, so use the browser/worker path for large or long projects.
+Browser jobs support 100 MiB ZIPs, 20,000 files and 300 MiB expanded data with existing anti-bomb limits. ZIP64/encrypted archives, unsupported compression and symlinks are rejected explicitly. The processor uses bounded buffering, not constant-memory streaming. API quotas can defer jobs; the original source retention is finite. Direct Telegram uploads retain the 20 MiB download path and are synchronous, so use the browser/worker path for large or long projects.
 
 ## References
 

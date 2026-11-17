@@ -111,16 +111,10 @@ export async function processingReadiness(): Promise<ProcessingReadiness> {
     );
   }
   try {
-    const { rows } = await db().query<{
-      ready: boolean;
-      queued: string;
-      oldest: number | null;
-      seen: Date | null;
-    }>(
+    const { rows } = await db().query<{ ready: boolean }>(
       `select (to_regclass('app.upload_job_files') is not null
           and exists(select 1 from information_schema.columns where table_schema='app' and table_name='upload_jobs' and column_name='lease_owner')
-          and exists(select 1 from information_schema.columns where table_schema='app' and table_name='upload_jobs' and column_name='actions_run_id')) as ready,
-        0::text as queued, null::float8 as oldest, null::timestamptz as seen`,
+          and exists(select 1 from information_schema.columns where table_schema='app' and table_name='upload_jobs' and column_name='actions_run_id')) as ready`,
     );
     checks.schema = Boolean(rows[0]?.ready);
     if (checks.schema) {

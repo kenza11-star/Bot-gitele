@@ -1,3 +1,5 @@
+> **Dokumen historis.** Rujukan ke worker permanen (`npm run worker`, Docker, systemd) sudah tidak berlaku; pemrosesan kini memakai GitHub Actions. Lihat `docs/ACTIONS-DEPLOYMENT.md`.
+
 # Stage 3 implementation and verification report
 
 Continued from the supplied `GitHub-Manager-Bot-V2-Stage2.5-Fixed.zip` (SHA-256 `f10bacd40dd6ffa3cd0a6a7e5834e4c218a6fc6d32ade05cefc14ac5b3ecaac0`), extracted into a fresh project directory. No older source was substituted. All original files remain in the project. This report supersedes the retained historical Stage 2.5 report.
