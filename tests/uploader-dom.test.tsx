@@ -178,6 +178,7 @@ beforeEach(() => {
         job.status = "uploaded";
         return reply(summary());
       }
+      if (path.endsWith("/process")) return reply(summary());
       if (path.endsWith("/cancel")) {
         job.status = "cancelled";
         cancelCalls++;
@@ -205,7 +206,7 @@ it("uploads actual chunks and retries completion without sending bytes again", a
   const view = render(<Uploader />);
   await choose(view.container);
   await screen.findByText(
-    "Potongan terverifikasi; antre di GitHub",
+    "Mengirim ke GitHub…",
     {},
     { timeout: 10000 },
   );
@@ -228,7 +229,7 @@ it("reload resumes verified chunks using the same scoped file identity", async (
   const resumed = render(<Uploader />);
   await choose(resumed.container);
   await screen.findByText(
-    "Potongan terverifikasi; antre di GitHub",
+    "Mengirim ke GitHub…",
     {},
     { timeout: 10000 },
   );
@@ -251,7 +252,7 @@ it("replaces an expired local job key with a new key before uploading", async ()
   const view = render(<Uploader />);
   await choose(view.container);
   await screen.findByText(
-    "Potongan terverifikasi; antre di GitHub",
+    "Mengirim ke GitHub…",
     {},
     { timeout: 10000 },
   );

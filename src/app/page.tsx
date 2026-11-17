@@ -45,7 +45,7 @@ export default async function Home() {
         <div className="pipe" aria-hidden="true">
           <span className="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>ZIP</span>
           <span className="link" />
-          <span className="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 5 13h6l-1 8 8-10h-6l1-8Z" /></svg>Actions</span>
+          <span className="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 5 13h6l-1 8 8-10h-6l1-8Z" /></svg>GitHub</span>
           <span className="link" />
           <span className="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 12h6m6 0h6" /></svg>Commit</span>
         </div>
@@ -65,7 +65,7 @@ export default async function Home() {
             <dl className="kv">
               <dt>Aplikasi web</dt><dd><span className="badge ok">Normal</span></dd>
               <dt>Database</dt><dd><span className={badge(db)}>{word(db)}</span></dd>
-              <dt>Pemrosesan ZIP</dt><dd className="muted">Dijalankan GitHub Actions; status antrean tersedia di dashboard.</dd>
+              <dt>Pemrosesan ZIP</dt><dd className="muted">Langsung dikirim ke GitHub setelah unggahan selesai; status tersedia di dashboard.</dd>
             </dl>
           </div></div>
         </section>

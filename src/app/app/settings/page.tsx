@@ -30,8 +30,8 @@ export default function Settings() {
       </section>
       <section className="panel" aria-labelledby="proses"><header><h2 id="proses">Pemrosesan ZIP</h2></header>
         <div className="body"><dl className="kv">
-          <dt>Mesin</dt><dd>GitHub Actions (workflow tepercaya milik layanan ini)</dd>
-          <dt>Pemicu</dt><dd>{me.data ? (me.data.instantProcessing ? "Langsung setelah unggahan diverifikasi" : "Sapuan terjadwal tiap ±30 menit (pemicu langsung belum dikonfigurasi)") : "Memuat…"}</dd>
+          <dt>Mesin</dt><dd>Langsung di server; GitHub Actions hanya cadangan bila proses terputus</dd>
+          <dt>Pemicu</dt><dd>Otomatis begitu unggahan diverifikasi, tanpa antrean</dd>
         </dl></div>
       </section>
     </div>

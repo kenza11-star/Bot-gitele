@@ -599,6 +599,34 @@ export async function markReady(
   await notifyProcessor(jobId);
   return getJobSummary(userId, jobId);
 }
+/**
+ * Publishes the uploaded ZIP to GitHub right away, inside this request, instead of waiting for the scheduled
+ * Actions sweep. If this request is cut short the lease expires and the sweep resumes from the saved checkpoints.
+ */
+export async function processJobNow(userId: number, jobId: string): Promise<JobSummary> {
+  const { claimJobById } = await import("../worker/state");
+  const { processClaimedJob } = await import("../worker/processor");
+  const { deliverOneNotice } = await import("../worker/notifications");
+  const { loadEnv } = await import("../env");
+  const owned = await db().query("select 1 from app.upload_jobs where id=$1 and telegram_user_id=$2", [jobId, userId]);
+  if (owned.rowCount) {
+    const job = await claimJobById(jobId);
+    if (job) {
+      try {
+        await processClaimedJob(job);
+      } catch (e) {
+        console.error("inline processing", e instanceof Error ? e.name : "unknown");
+      }
+      try {
+        const token = loadEnv().telegramBotToken;
+        for (let i = 0; i < 6; i++) if (!(await deliverOneNotice(token))) break;
+      } catch {
+        /* Telegram notices are best effort; the sweep delivers leftovers. */
+      }
+    }
+  }
+  return getJobSummary(userId, jobId);
+}
 /** Best effort. The job is already durable; a failed dispatch is recovered by the scheduled sweep. */
 async function notifyProcessor(jobId: string): Promise<void> {
   try {

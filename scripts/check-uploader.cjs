@@ -110,6 +110,7 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
         if (completionCalls === 1) return respond(503, { error: "temporary" });
         return respond(200, { verified: true });
       }
+      if (path.endsWith("/process")) return respond(200, summary());
       if (path.endsWith("/ready")) {
         assert(job.chunks.every((c) => c.status === "verified"));
         job.status = "uploaded";
@@ -153,7 +154,7 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     putIndexes = [];
     await page.locator("input[type=file]").setInputFiles(file);
     await page
-      .getByText("Potongan terverifikasi; antre di GitHub", { exact: true })
+      .getByText("Mengirim ke GitHub…", { exact: true })
       .waitFor({ timeout: 30000 });
     assert(
       !putIndexes.includes(0),
@@ -181,7 +182,7 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     expired = true;
     await page.getByRole("button", { name: "Coba lagi", exact: true }).click();
     await page
-      .getByText("Potongan terverifikasi; antre di GitHub", { exact: true })
+      .getByText("Mengirim ke GitHub…", { exact: true })
       .waitFor({ timeout: 30000 });
     console.log("PASS expired job safely creates a fresh upload");
     await context.close();

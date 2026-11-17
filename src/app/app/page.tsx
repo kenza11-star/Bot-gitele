@@ -39,7 +39,7 @@ export default function Dashboard() {
               <dt>Akun GitHub</dt><dd>{me.data.github.login}</dd>
               <dt>Repositori</dt><dd>{me.data.selection?.repoFullName ?? <span className="muted">Belum dipilih</span>}</dd>
               <dt>Branch</dt><dd>{me.data.selection?.branch ?? "—"}</dd>
-              <dt>Pemrosesan</dt><dd className="muted">{me.data.instantProcessing ? "GitHub Actions, dipicu langsung" : "GitHub Actions, sapuan terjadwal (hingga ±30 menit)"}</dd>
+              <dt>Pemrosesan</dt><dd className="muted">{"Langsung ke GitHub begitu unggahan selesai (tanpa antrean)"}</dd>
             </dl></div>
           </section>
         </div>

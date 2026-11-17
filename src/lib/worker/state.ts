@@ -90,6 +90,20 @@ export async function claimJob(leaseSeconds = 90): Promise<WorkerJob | null> {
   );
   return rows[0] ?? null;
 }
+/** Claims one specific job (used for immediate processing right after upload). Null if another worker already holds it. */
+export async function claimJobById(id: string, leaseSeconds = 90): Promise<WorkerJob | null> {
+  const owner = randomUUID();
+  const { rows } = await db().query<WorkerJob>(
+    `update app.upload_jobs set status='processing',lease_owner=$1,
+ lease_until=now()+$2*interval '1 second',processing_started_at=coalesce(processing_started_at,now()),
+ worker_attempts=worker_attempts+1,updated_at=now(),telegram_chat_id=coalesce(telegram_chat_id,telegram_user_id)
+ where id=$3 and status in ('uploaded','processing')
+ and chunk_count is not null and file_sha256 is not null and cancel_requested_at is null and next_attempt_at<=now()
+ and (lease_until is null or lease_until<now()) returning *`,
+    [owner, leaseSeconds, id],
+  );
+  return rows[0] ?? null;
+}
 const mutable = new Set([
   "processing_stage",
   "files_total",

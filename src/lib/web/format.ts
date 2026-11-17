@@ -37,7 +37,7 @@ export function statusInfo(status: string, stage?: string | null): { label: stri
   switch (status) {
     case "created": return { label: "Menunggu unggahan", tone: "idle", open: true };
     case "uploading": return { label: "Mengunggah", tone: "run", open: true };
-    case "uploaded": return { label: "Antre di GitHub Actions", tone: "run", open: true };
+    case "uploaded": return { label: "Mengirim ke GitHub", tone: "run", open: true };
     case "processing": return { label: stage ? (stages[stage] ?? "Memproses") : "Memproses", tone: "run", open: true };
     case "completed": return { label: "Selesai", tone: "ok", open: false };
     case "failed": return { label: "Gagal", tone: "bad", open: false };

@@ -416,7 +416,7 @@ export default function Uploader({
             window.clearInterval(id);
           }
         });
-    }, 3000);
+    }, 1500);
     return () => {
       window.clearInterval(id);
       abort.abort();
@@ -610,6 +610,10 @@ export default function Uploader({
       jobRef.current = ready;
       setJob(ready);
       setBytesDone(ready.bytesVerified);
+      if (ready.status !== "completed") {
+        // Publish to GitHub right away. The request keeps running server-side; progress comes from polling.
+        void api<JobSummary>("POST", `/api/upload/jobs/${ready.id}/process`, token, undefined, abort.signal).catch(() => undefined);
+      }
       if (ready.status === "completed" && storageKey)
         clearResumeKey(storageKey);
       setPhase(ready.status === "completed" ? "completed" : "ready");
@@ -663,9 +667,9 @@ export default function Uploader({
     phase === "preparing" ? "Menyiapkan…"
     : phase === "uploading" ? "Mengunggah…"
     : phase === "finishing" ? "Memverifikasi…"
-    : phase === "ready" ? "Potongan terverifikasi; antre di GitHub"
+    : phase === "ready" ? "Mengirim ke GitHub…"
     : phase === "processing" ? `GitHub: ${processingLabels[job?.stage ?? ""] ?? "Menunggu diproses"}`
-    : phase === "completed" ? (job?.commitSha ? "Unggahan selesai" : "Sudah terbaru")
+    : phase === "completed" ? (job?.commitSha ? "GitHub update ✓" : "Sudah terbaru ✓")
     : phase === "error" ? "Gagal"
     : phase === "cancelled" ? "Dibatalkan"
     : "";
@@ -793,7 +797,7 @@ export default function Uploader({
 
           {phase === "ready" && (
             <p className="ok">
-              ZIP diterima dan masuk antrean pemrosesan GitHub. Kamu boleh menutup halaman ini; progres juga dikirim ke Telegram.
+              ZIP diterima dan langsung dikirim ke GitHub, tanpa antrean. Tunggu sampai muncul “GitHub update ✓”; jika halaman ditutup, proses tetap dilanjutkan di server.
             </p>
           )}
           {(phase === "processing" || phase === "completed") && (
