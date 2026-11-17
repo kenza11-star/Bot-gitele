@@ -1,3 +1,5 @@
+> **Dokumen historis.** Rujukan ke worker permanen (`npm run worker`, Docker, systemd) sudah tidak berlaku; pemrosesan kini memakai GitHub Actions. Lihat `docs/ACTIONS-DEPLOYMENT.md`.
+
 # Stage 3 implementation plan
 
 Continue the supplied Stage 2.5 source. Keep Next.js/API upload boundaries and existing environment names.

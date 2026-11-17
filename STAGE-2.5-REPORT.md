@@ -1,3 +1,5 @@
+> **Dokumen historis.** Rujukan ke worker permanen (`npm run worker`, Docker, systemd) sudah tidak berlaku; pemrosesan kini memakai GitHub Actions. Lihat `docs/ACTIONS-DEPLOYMENT.md`.
+
 # Stage 2.5 repair report
 
 Source: the attached `GitHub-Manager-Bot-V2-Stage2-WebUpload.zip`, extracted into a new directory. No older workspace was used. No Stage 3 browser processing was implemented.

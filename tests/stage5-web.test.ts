@@ -10,8 +10,8 @@ import { GET as jobsGet } from "@/app/api/web/jobs/route";
 import { POST as retryPost } from "@/app/api/web/jobs/[id]/retry/route";
 import { POST as cancelPost } from "@/app/api/web/jobs/[id]/cancel/route";
 import { POST as signoutPost } from "@/app/api/web/signout/route";
-import { POST as webhook, MAX_UPDATE_FAILURES } from "@/app/api/telegram/webhook/route";
-import { claimUpdate } from "@/lib/telegram/update-claims";
+import { POST as webhook } from "@/app/api/telegram/webhook/route";
+import { claimUpdate, MAX_UPDATE_FAILURES } from "@/lib/telegram/update-claims";
 
 let engine: any;
 let env: ReturnType<typeof loadEnv>;

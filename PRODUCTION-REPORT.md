@@ -1,5 +1,7 @@
 # Production final verification report
 
+> **Pembaruan Stage 5:** worker permanen yang dijelaskan di laporan ini sudah diganti dengan GitHub Actions (`.github/workflows/process-uploads.yml`, `npm run worker:actions`, `worker:once`, `worker:check`). Langkah deploy terbaru: `docs/ACTIONS-DEPLOYMENT.md`. Tabel hasil di bawah adalah hasil audit **sebelum** Stage 5 dan tidak diverifikasi ulang untuk kode terbaru; rujukan ke worker/Docker/systemd/heartbeat di bawah bersifat historis.
+
 Audit date: 2026-11-16 UTC. This release continues the supplied Stage 3 source; it is not a rebuild. Every original project file is retained. Original ZIP SHA-256: `20085375a54a4e6a3a4537b8c80bc1584230f17febc764d405cbddbc9240a123`.
 
 ## Release status
@@ -23,9 +25,9 @@ Runtime: Node.js 24.22.1, npm 11.9.0, Next.js 15.5.29. npm emitted a host `http-
 
 Private Telegram `/upload` links contain short-lived signed owner/repository/branch scope and revocable session version. The browser hashes the selected archive and uploads 8 MiB chunks directly to the private Supabase bucket with bounded adaptive concurrency. The server verifies downloaded chunk lengths and SHA-256 before accepting completion. Finalization requires every verified chunk.
 
-The always-on executable worker atomically leases PostgreSQL jobs, reconstructs and validates ZIP/CRC/path/size limits, uses the original user's encrypted OAuth credentials and authorized installation repositories, compares Git blob identities, checkpoints blob uploads, builds an update-only tree, creates a deterministic commit and updates the branch without force. Completion requires remote commit confirmation. Durable notices update one Telegram message, then deliver the terminal result with real links; the bundled animation has a text fallback. No-op archives return Already up to date. Nothing removes repository files absent from the ZIP.
+The processor (now a GitHub Actions run; originally an always-on worker) atomically leases PostgreSQL jobs, reconstructs and validates ZIP/CRC/path/size limits, uses the original user's encrypted OAuth credentials and authorized installation repositories, compares Git blob identities, checkpoints blob uploads, builds an update-only tree, creates a deterministic commit and updates the branch without force. Completion requires remote commit confirmation. Durable notices update one Telegram message, then deliver the terminal result with real links; the bundled animation has a text fallback. No-op archives return Already up to date. Nothing removes repository files absent from the ZIP.
 
-The Vercel web app and separate worker are both required. Work is awaited by a persistent executable, not an unawaited request promise or daily cron. Existing recovery, throttling, cancellation, source cleanup, permission hints, binary/workflow support and job ownership checks remain intact.
+The Vercel web app and the GitHub Actions processor are both required. Work is awaited by the Actions run, not an unawaited request promise or daily cron. Existing recovery, throttling, cancellation, source cleanup, permission hints, binary/workflow support and job ownership checks remain intact.
 
 ## Confirmed defects fixed
 
@@ -36,7 +38,7 @@ The Vercel web app and separate worker are both required. Work is awaited by a p
 - APK fetching could fully buffer an excessive response or inflate every artifact entry. Streaming byte caps, timeouts, a validated single APK extraction and CRC protect memory/integrity. Release APK fallback is now connected before ZIP fallback; expired and oversized artifacts are skipped.
 - Invalid production APP_URL schemes/paths and illegal Telegram webhook secret format now fail validation. Correct callback and webhook paths are shared with deployment checks. Callback pages have restrictive CSP; post-link Telegram failure does not misreport successful OAuth as failure.
 - The uploader now loads validated repository/branch context before enabling file selection, shows real processing counters and provides mobile touch targets and accessible progress.
-- Readiness checks database/schema, private bucket configuration and a live worker heartbeat. The activation script refuses a missing/old deployment or unready dependencies, verifies webhook secret enforcement, registers only after probes, then verifies getWebhookInfo without printing credentials.
+- Readiness checks database/schema and private bucket configuration (core readiness no longer depends on the processor; processing readiness is reported separately). The activation script refuses a missing/old deployment or unready dependencies, verifies webhook secret enforcement, registers only after probes, then verifies getWebhookInfo without printing credentials.
 
 ## Tests and audit coverage
 
@@ -50,14 +52,14 @@ Static audit covered all Next.js route entry points, imports/types, Telegram com
 
 For an existing Stage 3 database apply only `db/migrations/0007_production_hardening.sql` after your normal backup. It is additive and re-runnable; no existing row is deleted. Older databases must first apply missing migrations in order. `db/setup-storage.sql` is separate manual setup for the private bucket and preserves existing objects/policies/limits. No production SQL was executed.
 
-Follow `docs/PRODUCTION-DEPLOYMENT.md` for the exact SQL commands, all existing unchanged ENV names, Vercel root directory, GitHub permissions, worker Docker/systemd commands, activation and public-user acceptance checklist. No secret values are bundled. Existing app ID, private key and GitHub webhook secret remain configured; the current per-user OAuth pipeline does not mint installation JWTs or implement a GitHub webhook receiver. Actions are queried by bot commands.
+Follow `docs/PRODUCTION-DEPLOYMENT.md` for the exact SQL commands, all existing unchanged ENV names, Vercel root directory, GitHub permissions, GitHub Actions secrets, activation and public-user acceptance checklist. No secret values are bundled. Existing app ID, private key and GitHub webhook secret remain configured; the current per-user OAuth pipeline does not mint installation JWTs or implement a GitHub webhook receiver. Actions are queried by bot commands.
 
 The supplied domain and callback match final source. The **currently deployed** domain returned root GET 200, uploader GET 404, callback GET 404 and webhook GET 405 during this audit. These results describe the previous deployment, not a deployment of this ZIP. Vercel project access returned HTTP 403, so its actual plan/runtime settings could not be verified. Deploy the final Next.js root correctly before activation.
 
 ## Remaining limitations and unverified infrastructure
 
 - Real OAuth consent, private Storage transfers/CORS, live GitHub writes/workflow permissions, real Telegram message/animation delivery and a live 100 MiB transfer require acceptance testing with the existing accounts after deployment.
-- Worker Docker/systemd configurations are supplied but were not built/deployed on a production host. Readiness heartbeats indicate a running loop, not guaranteed end-to-end provider health.
+- The GitHub Actions processor has not been run against live Supabase/GitHub/Telegram by this audit; the former Docker/systemd configurations were removed.
 - Mobile layout and UI behavior have DOM/CSS coverage; no actual Android/Telegram in-app browser session or successful full browser automation run is claimed.
 - The legacy direct Telegram upload path remains synchronous and limited to 20 MiB. Use browser/worker uploads for large or long jobs.
 - Existing archive limits remain: 100 MiB compressed, 300 MiB expanded, 20,000 entries plus anti-bomb checks. ZIP64, encryption, unsafe paths/symlinks and unsupported compression are rejected explicitly. Buffering is bounded, not constant-memory streaming.

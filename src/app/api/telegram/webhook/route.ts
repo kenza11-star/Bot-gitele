@@ -7,6 +7,7 @@ import { handleCallback } from "@/lib/telegram/callbacks";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { describeDbError } from "@/lib/deployment/diagnostics";
 import { sendMessage } from "@/lib/telegram/api";
+import { MAX_UPDATE_FAILURES } from "@/lib/telegram/update-claims";
 import type { TgUpdate } from "@/lib/telegram/types";
 
 export const runtime = "nodejs";
@@ -14,7 +15,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /** A failing update is retried by Telegram. After this many failures it is dropped so it cannot block the queue. */
-export const MAX_UPDATE_FAILURES = 3;
 const retry = () => NextResponse.json({ ok: false }, { status: 503, headers: { "retry-after": "30" } });
 
 // Logs contain only fixed reason codes, variable names and driver error codes. Never secrets, tokens or user content.
