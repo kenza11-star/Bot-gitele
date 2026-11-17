@@ -11,9 +11,9 @@ import { throughput, type Sample } from "@/lib/telegram/progress";
 import { resumeStorageKey, type ResumeScope } from "@/lib/upload/resume";
 import { CHUNK_LIMITS, UPLOAD_LIMITS } from "@/lib/upload/limits";
 
-const START_CONCURRENCY = 6;
+const START_CONCURRENCY = 10;
 const MIN_CONCURRENCY = 2;
-const MAX_CONCURRENCY = 16;
+const MAX_CONCURRENCY = 32;
 const MB = 1024 * 1024;
 const processingLabels: Record<string, string> = {
   verifying: "Memverifikasi ZIP",
