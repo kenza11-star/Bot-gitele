@@ -34,3 +34,6 @@ export async function finishUpdate(
   );
   return result.rows.length > 0;
 }
+
+/** A failing update is retried by Telegram. After this many failures it is dropped so it cannot block the queue. */
+export const MAX_UPDATE_FAILURES = 3;
