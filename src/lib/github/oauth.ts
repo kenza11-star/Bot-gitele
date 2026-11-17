@@ -84,6 +84,15 @@ export function refreshAccessToken(
 export interface GithubProfile {
   id: number;
   login: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  company?: string | null;
+  publicRepos?: number;
+  followers?: number;
+  following?: number;
+  createdAt?: string | null;
 }
 
 export async function fetchGithubProfile(
@@ -100,9 +109,23 @@ export async function fetchGithubProfile(
     throw new GithubAuthError("GitHub rejected the new token");
   if (!res.ok)
     throw new Error(`GitHub user lookup failed with status ${res.status}`);
-  const data = (await res.json()) as { id?: unknown; login?: unknown };
+  const data = (await res.json()) as Record<string, unknown>;
   if (typeof data.id !== "number" || typeof data.login !== "string") {
     throw new Error("GitHub user response is missing id or login");
   }
-  return { id: data.id, login: data.login };
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+  return {
+    id: data.id,
+    login: data.login,
+    name: str(data.name),
+    avatarUrl: str(data.avatar_url),
+    bio: str(data.bio),
+    location: str(data.location),
+    company: str(data.company),
+    publicRepos: num(data.public_repos),
+    followers: num(data.followers),
+    following: num(data.following),
+    createdAt: str(data.created_at),
+  };
 }

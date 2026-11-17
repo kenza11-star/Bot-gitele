@@ -60,6 +60,23 @@ export async function sendMessage(
   return result.message_id;
 }
 
+/** Sends a photo by URL with a caption (max 1024 chars). Throws TelegramApiError if Telegram cannot fetch it. */
+export async function sendPhoto(
+  token: string,
+  chatId: number,
+  photoUrl: string,
+  caption: string,
+  replyMarkup?: InlineKeyboard,
+): Promise<number> {
+  const result = await call<{ message_id: number }>(token, "sendPhoto", {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption: caption.slice(0, 1024),
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+  return result.message_id;
+}
+
 /** Edits a message. "message is not modified" is treated as success because the text already matches. */
 export async function editMessageText(
   token: string,

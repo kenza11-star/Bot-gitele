@@ -5,12 +5,12 @@ import type { AppEnv } from "../env";
 import { db } from "../db";
 import { consumeRateLimit } from "../rate-limit";
 import { logActivity } from "../activity";
-import { createLoginState } from "../auth/oauth-state";
+import { attachLoginMessage, createLoginState } from "../auth/oauth-state";
 import { isAdmin } from "../auth/admin";
-import { authorizeUrl } from "../github/oauth";
+import { authorizeUrl, fetchGithubProfile } from "../github/oauth";
 import { getActiveGithubLogin, unlinkGithubAccount } from "../github/linking";
 import { getUsableToken, revokeGrant } from "../github/credentials";
-import { assertRepoAccessible } from "../github/repos";
+import { assertRepoAccessible, listAccessibleRepos } from "../github/repos";
 import {
   listRuns,
   findNewestArtifact,
@@ -21,7 +21,8 @@ import {
   SEND_LIMIT,
 } from "../github/actions";
 import { makeCtx, withGithub, type Ctx } from "./context";
-import { sendDocument } from "./api";
+import { sendDocument, sendMessage } from "./api";
+import { loginKeyboard, sendProfileCard } from "./menu";
 import { dispatchProcessor } from "../actions-worker/dispatch";
 import { mintSessionToken } from "../upload/session";
 import { mintWebToken } from "../web/session";
@@ -33,7 +34,7 @@ import {
 } from "./state";
 import { showRepoPage } from "./callbacks";
 import { handleZipUpload } from "./documents";
-import { HELP_TEXT, UNKNOWN_TEXT, WELCOME_TEXT } from "./messages";
+import { HELP_TEXT, UNKNOWN_TEXT } from "./messages";
 import type { TgMessage } from "./types";
 
 async function requireSelection(ctx: Ctx): Promise<{
@@ -129,6 +130,41 @@ async function sendLatestApk(
   await ctx.reply("No APK found in the newest artifact or the latest release.");
 }
 
+/** Sends a message whose only button is Login; the OAuth callback later turns it into Success/Failed. */
+async function sendLoginPrompt(ctx: Ctx, text: string): Promise<void> {
+  if (!(await consumeRateLimit(`login:${ctx.telegramUserId}`, 5, 600))) {
+    return ctx.reply("Too many login attempts. Try again in a few minutes.");
+  }
+  const state = await createLoginState(ctx.telegramUserId);
+  const messageId = await sendMessage(
+    ctx.env.telegramBotToken,
+    ctx.chatId,
+    text,
+    loginKeyboard(authorizeUrl(ctx.env, state)),
+  );
+  await attachLoginMessage(state, messageId).catch(() => undefined);
+}
+
+/** /start: profile card + menu when already connected, otherwise the Login button. */
+async function showHome(ctx: Ctx): Promise<void> {
+  const cred = await getUsableToken(ctx.telegramUserId, ctx.env).catch(() => null);
+  if (cred) {
+    try {
+      const profile = await fetchGithubProfile(cred.token);
+      const count = await listAccessibleRepos(cred.token)
+        .then((r) => r.length)
+        .catch(() => null);
+      return sendProfileCard(ctx.env, ctx.chatId, profile, count);
+    } catch {
+      /* token no longer usable: fall through to the Login button */
+    }
+  }
+  return sendLoginPrompt(
+    ctx,
+    "Welcome to GitHub Manager!\n\nTap Login to connect your GitHub account. The link works once and expires in 10 minutes.",
+  );
+}
+
 export async function handleMessage(
   msg: TgMessage,
   env: AppEnv,
@@ -165,20 +201,14 @@ export async function handleMessage(
 
   switch (command) {
     case "/start":
-      return ctx.reply(WELCOME_TEXT);
+      return showHome(ctx);
     case "/help":
       return ctx.reply(HELP_TEXT);
 
     case "/login": {
-      if (!(await consumeRateLimit(`login:${from.id}`, 5, 600))) {
-        return ctx.reply(
-          "Too many login attempts. Try again in a few minutes.",
-        );
-      }
-      const state = await createLoginState(from.id);
-      return ctx.reply(
-        "Open this link to connect your GitHub account. It expires in 10 minutes and works once.\n\n" +
-          authorizeUrl(env, state),
+      return sendLoginPrompt(
+        ctx,
+        "Tap Login to connect your GitHub account. The link works once and expires in 10 minutes.",
       );
     }
 

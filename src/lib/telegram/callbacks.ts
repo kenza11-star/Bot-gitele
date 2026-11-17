@@ -5,6 +5,7 @@ import { makeCtx, withGithub, type Ctx } from "./context";
 import { listAccessibleRepos, assertRepoAccessible } from "../github/repos";
 import { setSelectedRepo } from "./state";
 import { consumeRateLimit } from "../rate-limit";
+import { MENU_COMMANDS } from "./menu";
 import type { TgCallbackQuery } from "./types";
 
 export const REPO_PAGE_SIZE = 8;
@@ -80,6 +81,15 @@ export async function handleCallback(
           : "Unable to cancel the upload. Try again.",
       );
     }
+    return;
+  }
+  // Menu buttons run the same code path as the slash command they stand for.
+  const menu = /^menu:([a-z]{1,12})$/.exec(cq.data ?? "");
+  if (menu) {
+    const command = MENU_COMMANDS[menu[1]];
+    if (!command) return;
+    const { handleMessage } = await import("./handlers");
+    await handleMessage({ chat: { id: chatId }, from: cq.from, text: command }, env);
     return;
   }
   const action = parseCallbackData(cq.data);

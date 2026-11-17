@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadEnv } from "@/lib/env";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { consumeLoginState } from "@/lib/auth/oauth-state";
+import { consumeLoginStateWithMessage } from "@/lib/auth/oauth-state";
 import { exchangeCode, fetchGithubProfile } from "@/lib/github/oauth";
 import { linkGithubAccount } from "@/lib/github/linking";
+import { listAccessibleRepos } from "@/lib/github/repos";
 import { logActivity } from "@/lib/activity";
-import { sendMessage } from "@/lib/telegram/api";
+import { markLoginResult, sendProfileCard } from "@/lib/telegram/menu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,9 @@ export async function GET(req: NextRequest) {
   if (!(await consumeRateLimit(`cb:${ip}`, 20, 60)))
     return page("Too many attempts. Try again later.", 429);
 
-  const telegramUserId = await consumeLoginState(state);
+  const consumed = await consumeLoginStateWithMessage(state);
+  const telegramUserId = consumed?.telegramUserId ?? null;
+  const loginMessageId = consumed?.messageId ?? null;
   if (telegramUserId === null) {
     return page(
       "This link is invalid, expired, or already used. Send /login in the bot to get a new one.",
@@ -60,11 +63,13 @@ export async function GET(req: NextRequest) {
         "failure",
         "account linked to another Telegram user",
       ).catch(() => undefined);
-      await sendMessage(
-        env.telegramBotToken,
+      await markLoginResult(
+        env,
         telegramUserId,
+        loginMessageId,
+        false,
         "This GitHub account is already connected to another Telegram user.",
-      ).catch(() => undefined);
+      );
       return page(
         "This GitHub account is already connected to another Telegram user.",
         409,
@@ -74,11 +79,19 @@ export async function GET(req: NextRequest) {
     await logActivity(telegramUserId, "github_connect", "success").catch(
       () => undefined,
     );
-    await sendMessage(
-      env.telegramBotToken,
+    await markLoginResult(
+      env,
       telegramUserId,
+      loginMessageId,
+      true,
       `GitHub account @${profile.login} connected.`,
-    ).catch(() => console.error("github connection notification unavailable"));
+    );
+    const accessible = await listAccessibleRepos(token.accessToken)
+      .then((r) => r.length)
+      .catch(() => null);
+    await sendProfileCard(env, telegramUserId, profile, accessible).catch(() =>
+      console.error("github connection notification unavailable"),
+    );
     return page("GitHub account connected. You can return to Telegram.");
   } catch (err) {
     await logActivity(
@@ -87,6 +100,13 @@ export async function GET(req: NextRequest) {
       "failure",
       err instanceof Error ? err.name : "unknown error",
     ).catch(() => undefined);
+    await markLoginResult(
+      env,
+      telegramUserId,
+      loginMessageId,
+      false,
+      "Could not complete GitHub authorization.",
+    );
     return page(
       "Could not complete GitHub authorization. Send /login in the bot to try again.",
       502,

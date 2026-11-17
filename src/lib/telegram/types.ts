@@ -21,7 +21,7 @@ export interface TgCallbackQuery {
   id: string;
   from: TgUser;
   data?: string;
-  message?: { chat: { id: number } };
+  message?: { chat: { id: number }; message_id?: number };
 }
 
 export interface TgUpdate {

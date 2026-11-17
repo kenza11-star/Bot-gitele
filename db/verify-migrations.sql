@@ -9,4 +9,6 @@ union all select 'upload_job_files table (0006)', to_regclass('app.upload_job_fi
 union all select 'upload_jobs.actions_run_id (0008)',
   exists(select 1 from information_schema.columns where table_schema='app' and table_name='upload_jobs' and column_name='actions_run_id')
 union all select 'upload_jobs.dispatched_at (0008)',
-  exists(select 1 from information_schema.columns where table_schema='app' and table_name='upload_jobs' and column_name='dispatched_at');
+  exists(select 1 from information_schema.columns where table_schema='app' and table_name='upload_jobs' and column_name='dispatched_at')
+union all select 'oauth_states.message_id (0009)',
+  exists(select 1 from information_schema.columns where table_schema='app' and table_name='oauth_states' and column_name='message_id');
