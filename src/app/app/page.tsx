@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useApi, type Job, type Me } from "./hooks";
-import { ErrorNotice, JobItem, NotLinked } from "./ui";
+import { ErrorNotice, JobItem, NotLinked, ProfileCard } from "./ui";
 import { statusInfo } from "@/lib/web/format";
 
 export default function Dashboard() {
@@ -20,19 +20,25 @@ export default function Dashboard() {
       <ErrorNotice error={me.error} />
       {me.data && !me.data.github && <NotLinked installUrl={me.data.installUrl} />}
       {me.data?.github && (
-        <div className="grid2">
+        <div className="dash">
+          <ProfileCard
+            login={me.data.github.login}
+            subtitle="Akun GitHub terhubung"
+            chip={me.data.selection?.repoFullName.split("/").pop() ?? null}
+            caption="30 unggahan terakhir"
+            stats={[
+              { icon: "check", tone: "var(--success)", value: done, label: "Berhasil" },
+              { icon: "alert", tone: "var(--danger)", value: failed, label: "Gagal" },
+              { icon: "pulse", tone: "var(--accent)", value: open.length, label: "Sedang berjalan" },
+            ]}
+            cta={{ label: "Lihat aktivitas", href: "/app/activity" }}
+            side={{ label: "Ubah repositori", href: "/app/github", icon: "edit" }}
+          />
           <section className="panel" aria-labelledby="acc"><header><h2 id="acc">Akun & repositori</h2><Link href="/app/github" className="btn sm">Ubah</Link></header>
             <div className="body"><dl className="kv">
               <dt>Akun GitHub</dt><dd>{me.data.github.login}</dd>
               <dt>Repositori</dt><dd>{me.data.selection?.repoFullName ?? <span className="muted">Belum dipilih</span>}</dd>
               <dt>Branch</dt><dd>{me.data.selection?.branch ?? "—"}</dd>
-            </dl></div>
-          </section>
-          <section className="panel" aria-labelledby="sum"><header><h2 id="sum">30 unggahan terakhir</h2></header>
-            <div className="body"><dl className="kv">
-              <dt>Berhasil</dt><dd>{done}</dd>
-              <dt>Gagal</dt><dd>{failed}</dd>
-              <dt>Sedang berjalan</dt><dd>{open.length}</dd>
               <dt>Pemrosesan</dt><dd className="muted">{me.data.instantProcessing ? "GitHub Actions, dipicu langsung" : "GitHub Actions, sapuan terjadwal (hingga ±30 menit)"}</dd>
             </dl></div>
           </section>

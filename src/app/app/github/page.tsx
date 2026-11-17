@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useSession, ApiFail } from "../session";
 import { useApi, type Me } from "../hooks";
-import { ErrorNotice, NotLinked } from "../ui";
+import { ErrorNotice, NotLinked, ProfileCard } from "../ui";
 
 interface Repo { id: number; fullName: string; defaultBranch: string; private: boolean }
 
@@ -33,13 +33,28 @@ export default function GithubPage() {
       {me.data && !me.data.github && <NotLinked installUrl={me.data.installUrl} />}
       {me.data?.github && (
         <>
-          <section className="panel" aria-labelledby="akun"><header><h2 id="akun">Akun</h2><span className="badge ok">Terhubung</span></header>
-            <div className="body"><dl className="kv">
-              <dt>Akun GitHub</dt><dd>{me.data.github.login}</dd>
-              <dt>Instalasi</dt><dd><a href={me.data.installUrl} target="_blank" rel="noreferrer">Kelola repositori yang diizinkan</a></dd>
-              <dt>Hubungkan ulang</dt><dd className="muted">Kirim <code>/login</code> di Telegram untuk otorisasi baru (tautan sekali pakai, 10 menit).</dd>
-            </dl></div>
-          </section>
+          <div className="dash">
+            <ProfileCard
+              login={me.data.github.login}
+              subtitle="Akun GitHub terhubung"
+              chip={me.data.selection?.repoFullName.split("/").pop() ?? null}
+              caption="Repositori yang diizinkan"
+              stats={[
+                { icon: "repo", tone: "var(--accent)", value: repos.data?.repos.length ?? 0, label: "Total" },
+                { icon: "lock", tone: "var(--warning)", value: repos.data?.repos.filter((r) => r.private).length ?? 0, label: "Privat" },
+                { icon: "globe", tone: "var(--success)", value: repos.data?.repos.filter((r) => !r.private).length ?? 0, label: "Publik" },
+              ]}
+              cta={{ label: "Kelola repositori yang diizinkan", href: me.data.installUrl, external: true }}
+              side={{ label: "Buka profil GitHub", href: `https://github.com/${encodeURIComponent(me.data.github.login)}`, icon: "ext", external: true }}
+            />
+            <section className="panel" aria-labelledby="akun"><header><h2 id="akun">Akun</h2><span className="badge ok">Terhubung</span></header>
+              <div className="body"><dl className="kv">
+                <dt>Akun GitHub</dt><dd>{me.data.github.login}</dd>
+                <dt>Instalasi</dt><dd><a href={me.data.installUrl} target="_blank" rel="noreferrer">Kelola repositori yang diizinkan</a></dd>
+                <dt>Hubungkan ulang</dt><dd className="muted">Kirim <code>/login</code> di Telegram untuk otorisasi baru (tautan sekali pakai, 10 menit).</dd>
+              </dl></div>
+            </section>
+          </div>
           <section className="panel" aria-labelledby="repo">
             <header><h2 id="repo">Repositori</h2></header>
             {repos.error && <div className="body"><ErrorNotice error={repos.error} /></div>}

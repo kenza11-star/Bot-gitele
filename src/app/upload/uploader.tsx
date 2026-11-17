@@ -214,56 +214,59 @@ function messageFor(err: unknown): string {
 
 const CSS = `
   .up{max-width:680px;margin:0 auto}
-  .up.page{padding:0 16px 56px;min-height:100dvh}
-  .up .top{display:flex;align-items:center;justify-content:space-between;gap:12px;height:60px;border-bottom:1px solid var(--border,#25282e);margin:0 -16px 28px;padding:0 16px}
-  .up .brandlink{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text,#e8e9eb);text-decoration:none}
-  .up .brandlink:hover{text-decoration:none}
-  .up .mark{width:24px;height:24px;border-radius:6px;background:var(--accent,#5bb4ff);color:var(--on-accent,#06121f);display:grid;place-items:center;font-size:13px;font-weight:700}
-  .up .nav{display:flex;gap:8px}
-  .up .nav a{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--border-strong,#353941);border-radius:6px;color:var(--text,#e8e9eb);font-size:13px;text-decoration:none}
-  .up .nav a:hover{border-color:var(--text-2,#9ba1a9)}
-  .up h1{font-size:26px;font-weight:650;margin:0 0 8px;letter-spacing:-.02em;line-height:1.2}
-  .up .lead{color:var(--text-2,#9ba1a9);font-size:15px;line-height:1.6;margin:0 0 24px}
-  .up .muted{color:var(--text-2,#9ba1a9);font-size:13px;line-height:1.55;margin:0 0 16px}
-  .up .card{border:1px solid var(--border,#25282e);border-radius:12px;padding:16px;margin-bottom:16px;background:var(--surface,#131518)}
-  .up .card h2{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3,#6b717a);margin:0 0 12px}
-  .up .target{display:grid;gap:10px}
+  .up.page{padding:28px 16px 64px;min-height:100dvh}
+  .up .brandlink{display:inline-flex;align-items:center;gap:10px;font-weight:650;font-size:16px;color:var(--text,#f5f6f8);text-decoration:none;margin-bottom:30px}
+  .up .brandlink:hover{text-decoration:none;color:var(--text,#f5f6f8)}
+  .up .brandlink:hover .mark{transform:rotate(-12deg) scale(1.12)}
+  .up h1{font-size:30px;font-weight:700;margin:0 0 10px;letter-spacing:-.03em;line-height:1.15;background:linear-gradient(180deg,#fff 30%,#9aa3b2);-webkit-background-clip:text;background-clip:text;color:transparent;animation:rise .7s var(--ease,ease) both}
+  .up .lead{color:var(--text-2,#a4aab5);font-size:15px;line-height:1.65;margin:0 0 26px;animation:rise .7s .08s var(--ease,ease) both}
+  .up .muted{color:var(--text-2,#a4aab5);font-size:13px;line-height:1.55;margin:0 0 16px}
+  .up .card{position:relative;border:1px solid var(--border,rgba(255,255,255,.08));border-radius:22px;padding:18px;margin-bottom:16px;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(255,255,255,.11),0 18px 50px -20px rgba(0,0,0,.95);animation:rise .6s var(--ease,ease) both}
+  .up .card h2{font-size:11px;font-weight:650;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3,#6b717c);margin:0 0 14px}
+  .up .target{display:grid;gap:12px}
   .up .target .line{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px}
-  .up .target .line>span:first-child{color:var(--text-2,#9ba1a9)}
-  .up .pill{display:inline-flex;align-items:center;max-width:100%;padding:3px 10px;border:1px solid var(--border-strong,#353941);border-radius:999px;background:var(--surface-2,#1a1d21);font-size:13px;overflow-wrap:anywhere}
-  .up .btn{background:var(--surface-2,#1a1d21);color:var(--text,#e8e9eb);border:1px solid var(--border-strong,#353941);border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;min-height:44px;font-family:inherit}
-  .up .btn:hover:not(:disabled){border-color:var(--text-2,#9ba1a9)}
-  .up .btn:focus-visible,.up .drop:focus-within{outline:2px solid var(--accent,#5bb4ff);outline-offset:2px}
-  .up .btn:disabled{opacity:.5;cursor:not-allowed}
-  .up .btn.primary{background:var(--accent,#5bb4ff);border-color:var(--accent,#5bb4ff);color:var(--on-accent,#06121f);font-weight:600}
-  .up .drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;border:1.5px dashed var(--border-strong,#353941);border-radius:12px;padding:36px 16px;margin-bottom:16px;cursor:pointer;color:var(--text-2,#9ba1a9);font-size:14px;background:var(--surface,#131518);transition:border-color .15s,background .15s}
-  .up .drop:hover:not(.disabled){border-color:var(--accent,#5bb4ff)}
-  .up .drop svg{width:40px;height:40px;color:var(--accent,#5bb4ff);margin-bottom:6px}
-  .up .drop strong{color:var(--text,#e8e9eb);font-weight:600;font-size:16px}
-  .up .drop .hint{display:inline-block;margin-top:8px;padding:2px 10px;border-radius:999px;background:var(--surface-2,#1a1d21);color:var(--text-3,#6b717a);font-size:12px}
-  .up .drop.over{border-color:var(--accent,#5bb4ff);background:var(--accent-soft,rgba(91,180,255,.1))}
+  .up .target .line>span:first-child{color:var(--text-2,#a4aab5)}
+  .up .pill{display:inline-flex;align-items:center;max-width:100%;padding:5px 13px;border:1px solid var(--border-strong,rgba(255,255,255,.15));border-radius:999px;background:rgba(255,255,255,.06);font-size:13px;overflow-wrap:anywhere;transition:transform .4s var(--spring,ease),border-color .25s}
+  .up .pill:hover{transform:translateY(-2px);border-color:rgba(120,180,255,.5)}
+  .up .btn{position:relative;overflow:hidden;background:rgba(255,255,255,.06);color:var(--text,#f5f6f8);border:1px solid var(--border-strong,rgba(255,255,255,.15));border-radius:999px;padding:9px 22px;font-size:14px;font-weight:500;cursor:pointer;min-height:46px;font-family:inherit;transition:transform .4s var(--spring,ease),background .25s,border-color .25s}
+  .up .btn:hover:not(:disabled){background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.28);transform:translateY(-2px)}
+  .up .btn:active:not(:disabled){transform:scale(.94);transition-duration:.12s}
+  .up .btn:focus-visible,.up .drop:focus-within{outline:2px solid var(--accent,#5aa5ff);outline-offset:3px}
+  .up .btn:disabled{opacity:.45;cursor:not-allowed}
+  .up .btn.primary{background:linear-gradient(180deg,#6fb2ff,var(--accent-2,#2f6fe8));border-color:rgba(160,205,255,.55);color:#fff;font-weight:650;box-shadow:0 10px 28px -8px rgba(47,111,232,.85),inset 0 1px 0 rgba(255,255,255,.35)}
+  .up .drop{--ang:0deg;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;border:1.5px dashed rgba(255,255,255,.22);border-radius:26px;padding:44px 16px;margin-bottom:16px;cursor:pointer;color:var(--text-2,#a4aab5);font-size:14px;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);transition:transform .5s var(--spring,ease),border-color .25s,background .25s,box-shadow .3s;animation:rise .6s .05s var(--ease,ease) both}
+  .up .drop::before{content:"";position:absolute;inset:-1.5px;border-radius:inherit;padding:1.5px;background:conic-gradient(from var(--ang),transparent 0 60%,rgba(90,165,255,.95) 80%,transparent 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none}
+  .up .drop:hover:not(.disabled){transform:translateY(-3px);box-shadow:0 20px 50px -18px rgba(47,111,232,.6)}
+  .up .drop:hover:not(.disabled)::before,.up .drop.over::before{opacity:1;animation:turn 3s linear infinite}
+  @keyframes turn{to{--ang:360deg}}
+  .up .drop svg{width:46px;height:46px;color:var(--accent,#5aa5ff);margin-bottom:8px;filter:drop-shadow(0 0 14px rgba(90,165,255,.6));animation:float 3.4s ease-in-out infinite}
+  .up .drop:active:not(.disabled){transform:scale(.97)}
+  .up .drop strong{color:var(--text,#f5f6f8);font-weight:650;font-size:17px}
+  .up .drop .hint{display:inline-block;margin-top:10px;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--text-3,#6b717c);font-size:12px}
+  .up .drop.over{border-color:transparent;background:rgba(90,165,255,.1);transform:scale(1.025)}
+  .up .drop.over svg{animation:float .7s ease-in-out infinite}
   .up .drop.disabled{opacity:.5;cursor:not-allowed}
   .up .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
   .up .head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:4px}
   .up .status{font-size:14px;font-weight:600}
-  .up .big{font-size:28px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .up .bar{height:8px;background:var(--border,#25282e);border-radius:4px;overflow:hidden;margin:10px 0 16px}
-  .up .bar>div{height:100%;background:var(--accent,#5bb4ff);border-radius:4px;transition:width .2s linear}
-  .up .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-  .up .stat{padding:10px 12px;border-radius:8px;background:var(--surface-2,#1a1d21)}
-  .up .stat span{display:block;font-size:12px;color:var(--text-3,#6b717a)}
+  .up .big{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em;background:linear-gradient(180deg,#fff,#8cc4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .up .bar{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin:12px 0 18px}
+  .up .bar>div{height:100%;background:linear-gradient(90deg,var(--accent-2,#2f6fe8),#8cc4ff);border-radius:999px;box-shadow:0 0 16px rgba(90,165,255,.75);transition:width .2s linear}
+  .up .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .up .stat{padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid var(--border,rgba(255,255,255,.08));transition:transform .4s var(--spring,ease),background .25s}
+  .up .stat:hover{transform:translateY(-3px);background:rgba(255,255,255,.08)}
+  .up .stat span{display:block;font-size:12px;color:var(--text-3,#6b717c)}
   .up .stat b{display:block;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-  .up .error,.up .ok,.up .info{border:1px solid var(--border-strong,#353941);border-left-width:3px;border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.55;margin:0 0 16px;background:var(--surface,#131518)}
-  .up .error{border-left-color:var(--danger,#f07878)}
-  .up .ok{border-left-color:var(--success,#6fcf8e)}
-  .up .info{border-left-color:var(--accent,#5bb4ff);color:var(--text-2,#9ba1a9)}
+  .up .error,.up .ok,.up .info{border:1px solid var(--border-strong,rgba(255,255,255,.15));border-left-width:3px;border-radius:16px;padding:13px 16px;font-size:14px;line-height:1.55;margin:0 0 16px;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);animation:rise .5s var(--ease,ease) both}
+  .up .error{border-left-color:var(--danger,#ff7b7b)}
+  .up .ok{border-left-color:var(--success,#5fdc95)}
+  .up .info{border-left-color:var(--accent,#5aa5ff);color:var(--text-2,#a4aab5)}
   .up .actions{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 16px}
-  .up .foot{margin-top:32px;padding-top:16px;border-top:1px solid var(--border,#25282e);display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;font-size:13px;color:var(--text-3,#6b717a)}
   .up .check{width:20px;height:20px;vertical-align:-4px;margin-right:6px}
   .up .check path{stroke-dasharray:24;stroke-dashoffset:24;animation:draw .5s ease-out forwards}
   @keyframes draw{to{stroke-dashoffset:0}}
   @media (prefers-reduced-motion:reduce){.up .check path{animation:none;stroke-dashoffset:0}.up .bar>div{transition:none}}
-  @media (max-width:420px){.up .btn{flex:1 1 100%}.up h1{font-size:22px}}
+  @media (max-width:420px){.up .btn{flex:1 1 100%}.up h1{font-size:25px}}
 `;
 
 export default function Uploader({
@@ -284,8 +287,6 @@ export default function Uploader({
   const [concurrency, setConcurrency] = useState(START_CONCURRENCY);
   const [chunksDone, setChunksDone] = useState(0);
   const [errorText, setErrorText] = useState<string | null>(null);
-  const [host, setHost] = useState("");
-  useEffect(() => setHost(window.location.host), []);
 
   const resumeStorageRef = useRef<string | null>(null);
   const jobRef = useRef<JobSummary | null>(null);
@@ -674,15 +675,9 @@ export default function Uploader({
     <Wrapper className={embedded ? "up" : "up page"}>
       <style>{CSS}</style>
       {!embedded && (
-        <header className="top">
-          <a className="brandlink" href="/">
-            <span className="mark" aria-hidden="true">K</span>Kyn-X
-          </a>
-          <nav className="nav" aria-label="Navigasi">
-            <a href="/">Beranda</a>
-            <a href="/app">Dashboard</a>
-          </nav>
-        </header>
+        <a className="brandlink" href="/">
+          <span className="mark" aria-hidden="true">K</span>Kyn-X
+        </a>
       )}
       {!embedded && <h1>Unggah proyek ZIP</h1>}
       {!embedded && (
@@ -840,12 +835,6 @@ export default function Uploader({
         </>
       )}
 
-      {!embedded && (
-        <footer className="foot">
-          <span>Progres juga dikirim ke bot Telegram.</span>
-          <a href="/">{host || "Beranda"}</a>
-        </footer>
-      )}
     </Wrapper>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { SessionProvider, useSession } from "./session";
 import { Icon } from "./ui";
 import { useApi, type Me } from "./hooks";
@@ -30,13 +30,22 @@ function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const { token, ready } = useSession();
   const me = useApi<Me>("/api/web/me");
+  const glow = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(".panel, .pcard");
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
   if (!ready) return null;
   if (!token) return <SignedOut />;
+  const idx = NAV.findIndex((n) => n.href === path);
   return (
-    <div className="shell">
+    <div className="shell" onPointerMove={glow}>
       <aside className="side">
         <Link className="brand" href="/"><span className="mark" aria-hidden="true">K</span>Kyn-X</Link>
         <nav className="nav" aria-label="Navigasi dashboard">
+          <span className="ind" aria-hidden="true" style={{ "--i": Math.max(idx, 0) } as CSSProperties} {...(idx < 0 ? { "data-hide": "" } : {})} />
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} aria-current={path === n.href ? "page" : undefined}>
               <Icon name={n.icon} />
@@ -44,7 +53,7 @@ function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="who">{me.data?.github ? <>GitHub: <strong>{me.data.github.login}</strong></> : "GitHub belum terhubung"}</div>
+        <div className="who" {...(me.data?.github ? { "data-on": "" } : {})}><span>{me.data?.github ? <>GitHub: <strong>{me.data.github.login}</strong></> : "GitHub belum terhubung"}</span></div>
       </aside>
       <main className="main" id="konten">{children}</main>
     </div>
