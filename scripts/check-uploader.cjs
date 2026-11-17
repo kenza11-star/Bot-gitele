@@ -153,7 +153,7 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     putIndexes = [];
     await page.locator("input[type=file]").setInputFiles(file);
     await page
-      .getByText("Chunks verified; queued for GitHub", { exact: true })
+      .getByText("Potongan terverifikasi; antre di GitHub", { exact: true })
       .waitFor({ timeout: 30000 });
     assert(
       !putIndexes.includes(0),
@@ -166,12 +166,12 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     job = null;
     hold = true;
     await page.locator("input[type=file]").setInputFiles(file);
-    await page.getByRole("button", { name: "Cancel", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Batal", exact: true }).waitFor();
     await page.waitForFunction(() =>
-      document.body.textContent.includes("Uploading…"),
+      document.body.textContent.includes("Mengunggah…"),
     );
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.getByText("Upload cancelled.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Batal", exact: true }).click();
+    await page.getByText("Unggahan dibatalkan.", { exact: true }).waitFor();
     assert.equal(cancelled, 1);
     hold = false;
     console.log(
@@ -179,9 +179,9 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     );
     // Existing key now expired: uploader must obtain a fresh key and retry once.
     expired = true;
-    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await page.getByRole("button", { name: "Coba lagi", exact: true }).click();
     await page
-      .getByText("Chunks verified; queued for GitHub", { exact: true })
+      .getByText("Potongan terverifikasi; antre di GitHub", { exact: true })
       .waitFor({ timeout: 30000 });
     console.log("PASS expired job safely creates a fresh upload");
     await context.close();

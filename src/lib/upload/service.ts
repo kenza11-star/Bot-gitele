@@ -1,3 +1,4 @@
+import { dispatchProcessor } from "../actions-worker/dispatch";
 import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { UploadScope } from "./session";
@@ -595,7 +596,20 @@ export async function markReady(
       [job.id],
     );
   });
+  await notifyProcessor(jobId);
   return getJobSummary(userId, jobId);
+}
+/** Best effort. The job is already durable; a failed dispatch is recovered by the scheduled sweep. */
+async function notifyProcessor(jobId: string): Promise<void> {
+  try {
+    const result = await dispatchProcessor();
+    await db().query(
+      "update app.upload_jobs set dispatched_at=case when $2 then now() else dispatched_at end,dispatch_error=$3 where id=$1 and status='uploaded'",
+      [jobId, result.ok, result.ok ? null : `dispatch_${result.reason}${"status" in result && result.status ? `_${result.status}` : ""}`],
+    );
+  } catch {
+    /* Columns from migration 0008 may be absent; never fail an upload over bookkeeping. */
+  }
 }
 export async function cancelJob(
   userId: number,
@@ -688,4 +702,106 @@ export async function expireStaleUploads(limit = 20): Promise<number> {
     }
   }
   return done;
+}
+
+export interface JobListItem {
+  id: string;
+  fileName: string | null;
+  repoFullName: string | null;
+  branch: string | null;
+  status: string;
+  stage: string | null;
+  totalBytes: number;
+  bytesVerified: number;
+  filesTotal: number | null;
+  filesProcessed: number;
+  added: number;
+  updated: number;
+  unchanged: number;
+  commitSha: string | null;
+  commitUrl: string | null;
+  error: string | null;
+  actionsRunUrl: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  canCancel: boolean;
+  canRetry: boolean;
+}
+
+/** Only the caller's own jobs. Internal columns (lease owners, notification state, user ids) are never returned. */
+export async function listJobs(userId: number, limit = 30): Promise<JobListItem[]> {
+  const { rows } = await db().query(
+    `select id,file_name,repo_full_name,branch,status,processing_stage,total_bytes,bytes_received,files_total,files_processed,
+            files_added,files_updated,files_unchanged,commit_sha,commit_url,error,actions_run_url,created_at,completed_at,
+            publish_started_at,storage_cleaned_at,expires_at,retry_count,github_confirmed_at
+     from app.upload_jobs where telegram_user_id=$1 and repo_full_name is not null order by created_at desc limit $2`,
+    [userId, Math.min(Math.max(limit, 1), 100)],
+  );
+  return rows.map((r) => {
+    const open = ["created", "uploading", "uploaded", "processing"].includes(r.status);
+    const confirmed = r.status === "completed" && r.github_confirmed_at;
+    return {
+      id: r.id,
+      fileName: r.file_name,
+      repoFullName: r.repo_full_name,
+      branch: r.branch,
+      status: r.status === "completed" && !confirmed ? "processing" : r.status,
+      stage: r.processing_stage,
+      totalBytes: Number(r.total_bytes ?? 0),
+      bytesVerified: Number(r.bytes_received ?? 0),
+      filesTotal: r.files_total,
+      filesProcessed: r.files_processed ?? 0,
+      added: r.files_added ?? 0,
+      updated: r.files_updated ?? 0,
+      unchanged: r.files_unchanged ?? 0,
+      commitSha: confirmed ? r.commit_sha : null,
+      commitUrl: confirmed ? r.commit_url : null,
+      error: r.error,
+      actionsRunUrl: r.actions_run_url ?? null,
+      createdAt: new Date(r.created_at).toISOString(),
+      completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : null,
+      canCancel: open && !r.publish_started_at,
+      canRetry: canRetry(r),
+    };
+  });
+}
+
+export function canRetry(r: {
+  status: string;
+  publish_started_at: unknown;
+  storage_cleaned_at: unknown;
+  expires_at: Date | string;
+  retry_count?: number | null;
+}): boolean {
+  return (
+    r.status === "failed" &&
+    !r.publish_started_at &&
+    !r.storage_cleaned_at &&
+    new Date(r.expires_at).getTime() > Date.now() &&
+    (r.retry_count ?? 0) < MAX_MANUAL_RETRIES
+  );
+}
+export const MAX_MANUAL_RETRIES = 3;
+
+/**
+ * Re-queues a failed job whose ZIP is still in private storage. Refused when GitHub publication had started
+ * (the remote outcome is uncertain), when storage was cleaned, or after MAX_MANUAL_RETRIES attempts.
+ */
+export async function retryJob(userId: number, jobId: string): Promise<void> {
+  await locked(userId, jobId, async (client, job) => {
+    const { rows } = await client.query(
+      "select status,publish_started_at,storage_cleaned_at,expires_at,retry_count from app.upload_jobs where id=$1",
+      [job.id],
+    );
+    if (!rows[0] || !canRetry(rows[0]))
+      throw new UploadError(409, "Unggahan ini tidak dapat dicoba ulang. Mulai unggahan baru.");
+    await client.query(
+      `update app.upload_jobs set status='uploaded',processing_stage='verifying',error=null,worker_failures=0,
+       next_attempt_at=now(),lease_owner=null,lease_until=null,retry_count=retry_count+1,
+       terminal_notified_at=null,terminal_message_id=null,animation_attempted_at=null,notify_after=now(),
+       dispatched_at=null,dispatch_error=null,expires_at=now()+interval '72 hours',updated_at=now(),version=version+1 where id=$1`,
+      [job.id],
+    );
+  });
+  await notifyProcessor(jobId);
 }

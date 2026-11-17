@@ -9,6 +9,8 @@ export interface UploadClaims {
     branch: string;
     sessionVersion?: number;
   };
+  /** Only on dashboard tokens: must equal telegram_users.upload_session_version. */
+  sessionVersion?: number;
   exp: number; // epoch milliseconds
 }
 
@@ -93,10 +95,12 @@ export function verifyUploadToken(
       c.scope.sessionVersion < 0)
   )
     return null;
+  if (c.sessionVersion !== undefined && (!Number.isSafeInteger(c.sessionVersion) || c.sessionVersion < 0)) return null;
   return {
     jobId: c.jobId,
     telegramUserId: c.telegramUserId,
     exp: c.exp,
+    ...(c.sessionVersion !== undefined ? { sessionVersion: c.sessionVersion } : {}),
     ...(c.scope ? { scope: c.scope } : {}),
   };
 }

@@ -8,10 +8,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "node scripts/check-uploader.cjs",
-    "worker": "node --import tsx src/worker.ts",
     "worker:check": "node --import tsx src/worker.ts --check",
     "telegram:activate": "node --import tsx scripts/telegram-activate.ts",
-    "start": "next start"
+    "start": "next start",
+    "worker:actions": "node --import tsx src/worker.ts --batch",
+    "worker:once": "node --import tsx src/worker.ts --once",
+    "test:node": "node --import tsx --test tests/node/*.test.ts"
   },
   "dependencies": {
     "fflate": "0.8.3",

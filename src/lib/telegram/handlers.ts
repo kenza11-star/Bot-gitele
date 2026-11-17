@@ -22,7 +22,9 @@ import {
 } from "../github/actions";
 import { makeCtx, withGithub, type Ctx } from "./context";
 import { sendDocument } from "./api";
+import { dispatchProcessor } from "../actions-worker/dispatch";
 import { mintSessionToken } from "../upload/session";
+import { mintWebToken } from "../web/session";
 import {
   getUserState,
   setPending,
@@ -51,6 +53,20 @@ async function requireSelection(ctx: Ctx): Promise<{
     repoBranch: st.repoBranch ?? "",
     sessionVersion: st.sessionVersion,
   };
+}
+
+/** A queued job nobody has picked up for 3+ minutes means the dispatch was missed; nudge the processor once. */
+async function redispatchIfStalled(userId: number): Promise<void> {
+  try {
+    const { rows } = await db().query(
+      `select 1 from app.upload_jobs where telegram_user_id=$1 and status='uploaded' and cancel_requested_at is null
+       and next_attempt_at<now()-interval '3 minutes' and (dispatched_at is null or dispatched_at<now()-interval '3 minutes') limit 1`,
+      [userId],
+    );
+    if (rows.length) await dispatchProcessor();
+  } catch {
+    /* best effort */
+  }
 }
 
 async function sendLatestApk(
@@ -166,6 +182,21 @@ export async function handleMessage(
       );
     }
 
+    case "/web":
+    case "/dashboard": {
+      if (!(await consumeRateLimit(`web-link:${from.id}`, 5, 600)))
+        return ctx.reply("Too many dashboard links requested. Try again in a few minutes.");
+      const v = await db().query<{ upload_session_version: number }>(
+        "select upload_session_version from app.telegram_users where id=$1",
+        [from.id],
+      );
+      const token = mintWebToken(from.id, env.encryptionKey, v.rows[0]?.upload_session_version ?? 0);
+      return ctx.reply(
+        "Open the dashboard with the button below. The link signs you in for 8 hours; do not forward it.",
+        { inline_keyboard: [[{ text: "Open dashboard", url: `${env.appUrl}/app#t=${token}` }]] },
+      );
+    }
+
     case "/status": {
       const login = await getActiveGithubLogin(from.id);
       const st = await getUserState(from.id);
@@ -175,6 +206,7 @@ export async function handleMessage(
       const repo = st.repoFullName
         ? `Selected repository: ${st.repoFullName}`
         : "No repository selected. Use /repos.";
+      await redispatchIfStalled(from.id);
       return ctx.reply(`${account}\n${repo}`);
     }
 

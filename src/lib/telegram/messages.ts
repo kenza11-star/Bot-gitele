@@ -3,12 +3,13 @@ export const WELCOME_TEXT = [
   "",
   "Connect your GitHub account to manage repositories, upload projects, monitor GitHub Actions, and download application builds.",
   "",
-  "Send /login to connect your GitHub account.",
+  "Send /login to connect your GitHub account, then /web to open the dashboard.",
 ].join("\n");
 
 export const HELP_TEXT = [
   "Commands:",
   "/login - connect your GitHub account",
+  "/web - open the web dashboard (sign-in link, valid 8 hours)",
   "/status - show your connected account and selected repository",
   "/repos - choose a repository your GitHub App installation can access",
   "/branch [name] - list or select an existing branch",

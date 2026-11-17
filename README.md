@@ -15,11 +15,11 @@ npm ci
 npm run typecheck
 npm test
 npm run build
-npm run worker -- --help
+npm run worker:check   # verifies configuration/schema; the processor itself runs in GitHub Actions
 npm run telegram:activate -- --dry-run
 ```
 
-`npm start` serves the built web app. `npm run worker` starts the required separate always-on processor with the same existing environment values.
+`npm start` serves the built web app. ZIP processing runs in GitHub Actions (`.github/workflows/process-uploads.yml`); there is no always-on worker. See docs/ACTIONS-DEPLOYMENT.md.
 
 ## Deploy
 

@@ -268,15 +268,16 @@ it("webhook rejects invalid secrets and accepts the authenticated deployment no-
     ).status,
   ).toBe(200);
 });
-it("readiness refuses a missing worker and then verifies fresh worker heartbeat/private bucket", async () => {
-  expect((await readiness()).status).toBe("unavailable");
-  await state.pool.query(
-    "insert into app.worker_heartbeats(instance_id) values('123e4567-e89b-42d3-a456-426614174000')",
-  );
-  expect(await readiness()).toEqual({
-    status: "ready",
-    checks: { database: true, schema: true, storage: true, worker: true },
-  });
+it("core readiness never depends on a running processor; processing readiness is reported separately", async () => {
+  const r = await readiness();
+  expect(r.status).toBe("ready");
+  expect(r.core).toEqual({ ready: true, checks: { env: true, database: true, schema: true }, problems: [] });
+  expect(r.processing.checks.storage).toBe(true);
+  expect(r.processing.checks.schema).toBe(true);
+  expect(r.processing.ready).toBe(true);
+  // No heartbeat, no dispatch token: still ready for /start, and the optional gap is explained.
+  expect(r.processing.lastProcessorSeenAt).toBeNull();
+  expect(r.processing.problems.map((p) => p.code)).toContain("ACTIONS_DISPATCH_TOKEN_MISSING");
 });
 it("logout and reauthentication increment revocation versions without exposing the other account", async () => {
   const before = (await getUserState(1)).sessionVersion;

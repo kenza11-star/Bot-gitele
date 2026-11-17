@@ -16,13 +16,13 @@ const MIN_CONCURRENCY = 2;
 const MAX_CONCURRENCY = 16;
 const MB = 1024 * 1024;
 const processingLabels: Record<string, string> = {
-  verifying: "Verifying ZIP",
-  extracting: "Extracting project files",
-  validating: "Validating files",
-  comparing: "Comparing repository files",
-  uploading_blobs: "Uploading GitHub files",
-  creating_commit: "Creating commit",
-  updating_branch: "Confirming GitHub commit",
+  verifying: "Memverifikasi ZIP",
+  extracting: "Mengekstrak file proyek",
+  validating: "Memvalidasi file",
+  comparing: "Membandingkan dengan repositori",
+  uploading_blobs: "Mengirim file ke GitHub",
+  creating_commit: "Membuat commit",
+  updating_branch: "Menunggu konfirmasi GitHub",
 };
 
 interface ChunkInfo {
@@ -206,33 +206,51 @@ function clearResumeKey(storageKey: string): void {
 function messageFor(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof TypeError)
-    return "Network problem. Check your connection, then press Retry.";
+    return "Masalah jaringan. Periksa koneksi, lalu tekan Coba lagi.";
   if (err instanceof Error && err.message === "cancelled")
-    return "Upload cancelled.";
-  return "Unexpected error. Press Retry to resume.";
+    return "Unggahan dibatalkan.";
+  return "Terjadi kesalahan tak terduga. Tekan Coba lagi untuk melanjutkan.";
 }
 
 const CSS = `
-  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 48px;box-sizing:border-box}
-  h1{font-size:18px;font-weight:600;margin:0 0 6px}
-  .muted{color:#9aa0a6;font-size:13px;line-height:1.5;margin:0 0 16px}
-  .card{border:1px solid #2a2d33;border-radius:6px;padding:14px;margin-bottom:14px;background:#17191d}
-  .row{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:4px 0;flex-wrap:wrap}
-  .row span:first-child{color:#9aa0a6}.row span:last-child{overflow-wrap:anywhere;min-width:0}.row{align-items:baseline}
-  .bar{height:10px;background:#2a2d33;border-radius:4px;overflow:hidden;margin:10px 0}
-  .bar>div{height:100%;background:#4f8cff;transition:width .2s linear}
-  .btn{background:#2a2d33;color:#e6e6e6;border:1px solid #3a3e46;border-radius:6px;padding:9px 14px;font-size:14px;cursor:pointer;min-height:44px}
-  .btn:disabled{opacity:.45;cursor:not-allowed}
-  .btn.primary{background:#4f8cff;border-color:#4f8cff;color:#fff}
-  .file{display:block;margin-bottom:14px}
-  .file input{width:100%;font-size:14px;color:#e6e6e6}
-  .error{color:#f08a8a;font-size:14px;line-height:1.5;margin:10px 0}
-  .ok{color:#8fd19e;font-size:14px;line-height:1.5;margin:10px 0}
-  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-  @media (max-width:420px){.btn{flex:1 1 100%}}
+  .up{max-width:720px;margin:0 auto}
+  .up.page{padding:24px 16px 56px}
+  .up h1{font-size:20px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+  .up .muted{color:var(--text-2,#9aa0a6);font-size:13px;line-height:1.55;margin:0 0 16px}
+  .up .card{border:1px solid var(--border,#2a2d33);border-radius:8px;padding:12px 14px;margin-bottom:12px;background:var(--surface,#17191d)}
+  .up .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;padding:5px 0;flex-wrap:wrap}
+  .up .row span:first-child{color:var(--text-2,#9aa0a6)}
+  .up .row span:last-child{overflow-wrap:anywhere;min-width:0;font-variant-numeric:tabular-nums}
+  .up .bar{height:6px;background:var(--border,#2a2d33);border-radius:3px;overflow:hidden;margin:10px 0}
+  .up .bar>div{height:100%;background:var(--accent,#5bb4ff);transition:width .2s linear}
+  .up .btn{background:var(--surface-2,#22252b);color:var(--text,#e6e6e6);border:1px solid var(--border-strong,#3a3e46);border-radius:6px;padding:9px 14px;font-size:14px;cursor:pointer;min-height:44px;font-family:inherit}
+  .up .btn:hover:not(:disabled){border-color:var(--text-2,#9aa0a6)}
+  .up .btn:focus-visible,.up .drop:focus-within{outline:2px solid var(--accent,#5bb4ff);outline-offset:2px}
+  .up .btn:disabled{opacity:.5;cursor:not-allowed}
+  .up .btn.primary{background:var(--accent,#5bb4ff);border-color:var(--accent,#5bb4ff);color:var(--on-accent,#06121f);font-weight:600}
+  .up .drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;border:1px dashed var(--border-strong,#3a3e46);border-radius:8px;padding:28px 16px;margin-bottom:12px;cursor:pointer;color:var(--text-2,#9aa0a6);font-size:14px;transition:border-color .15s,background .15s}
+  .up .drop strong{color:var(--text,#e6e6e6);font-weight:600}
+  .up .drop.over{border-color:var(--accent,#5bb4ff);background:var(--accent-soft,rgba(91,180,255,.08))}
+  .up .drop.disabled{opacity:.5;cursor:not-allowed}
+  .up .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .up .error{color:var(--danger,#f08a8a);font-size:14px;line-height:1.5;margin:10px 0}
+  .up .ok{color:var(--success,#8fd19e);font-size:14px;line-height:1.5;margin:10px 0}
+  .up .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .up .check{width:20px;height:20px;vertical-align:-4px;margin-right:6px}
+  .up .check path{stroke-dasharray:24;stroke-dashoffset:24;animation:draw .5s ease-out forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @media (prefers-reduced-motion:reduce){.up .check path{animation:none;stroke-dashoffset:0}.up .bar>div{transition:none}}
+  @media (max-width:420px){.up .btn{flex:1 1 100%}}
 `;
 
-export default function Uploader() {
+export default function Uploader({
+  initialToken,
+  embedded = false,
+}: {
+  /** Dashboard flow: an upload token already bound to one verified repository and branch. */
+  initialToken?: string;
+  embedded?: boolean;
+} = {}) {
   const [token, setToken] = useState<string | null>(null);
   const [scope, setScope] = useState<ResumeScope | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -255,6 +273,7 @@ export default function Uploader() {
 
   // Read the session token from the URL fragment, then remove it from the address bar.
   useEffect(() => {
+    if (initialToken) return () => abortRef.current?.abort();
     let t = new URLSearchParams(window.location.hash.slice(1)).get("t");
     try {
       if (t) window.sessionStorage.setItem("gm-upload-session", t);
@@ -278,18 +297,24 @@ export default function Uploader() {
             else if (summary.status === "completed") setPhase("completed");
             else if (["failed", "expired"].includes(summary.status)) {
               setPhase("error");
-              setErrorText(summary.error ?? "GitHub processing failed");
+              setErrorText(summary.error ?? "Pemrosesan GitHub gagal");
             }
           })
           .catch(() => {});
       window.history.replaceState(null, "", window.location.pathname);
     } else {
       setNotice(
-        "Open this page with the Upload ZIP button from the Telegram bot.",
+        "Buka halaman ini lewat tombol Unggah ZIP dari bot Telegram, atau pilih repositori di dashboard.",
       );
     }
     return () => abortRef.current?.abort();
   }, []);
+
+  useEffect(() => {
+    if (!initialToken) return;
+    setToken(initialToken);
+    setNotice(null);
+  }, [initialToken]);
 
   useEffect(() => {
     if (!token) return;
@@ -351,16 +376,16 @@ export default function Uploader() {
               clearResumeKey(resumeStorageRef.current);
           } else if (["failed", "expired"].includes(current.status)) {
             setPhase("error");
-            setErrorText(current.error ?? "GitHub processing failed");
+            setErrorText(current.error ?? "Pemrosesan GitHub gagal");
           } else if (current.status === "cancelled") {
             setPhase("cancelled");
-            setErrorText("Upload cancelled.");
+            setErrorText("Unggahan dibatalkan.");
           } else setPhase("processing");
         })
         .catch((err) => {
           if (err instanceof ApiError && err.status === 401) {
             setNotice(
-              "This browser link expired. Processing continues; check Telegram or open a fresh /upload link.",
+              "Tautan browser ini kedaluwarsa. Pemrosesan tetap berjalan; cek Telegram atau buka tautan /upload yang baru.",
             );
             window.clearInterval(id);
           }
@@ -438,16 +463,16 @@ export default function Uploader() {
     if (!token || (abortRef.current && !abortRef.current.signal.aborted))
       return;
     if (!file.name.toLowerCase().endsWith(".zip")) {
-      setErrorText("Please choose a .zip file.");
+      setErrorText("Pilih file berekstensi .zip.");
       return;
     }
     if (file.size <= 0) {
-      setErrorText("This file is empty.");
+      setErrorText("File ini kosong.");
       return;
     }
     if (file.size > UPLOAD_LIMITS.webArchiveBytes) {
       setErrorText(
-        `This ZIP is ${(file.size / MB).toFixed(1)} MB. The browser limit is 100 MB.`,
+        `ZIP ini berukuran ${(file.size / MB).toFixed(1)} MB. Batas unggahan browser adalah 100 MB.`,
       );
       return;
     }
@@ -590,7 +615,7 @@ export default function Uploader() {
       }
     }
     setPhase("cancelled");
-    setErrorText("Upload cancelled.");
+    setErrorText("Unggahan dibatalkan.");
   }
 
   const busy =
@@ -604,76 +629,80 @@ export default function Uploader() {
     total > 0 ? Math.min(100, Math.floor((bytesDone / total) * 100)) : 0;
   const chunkTotal = job?.chunkCount ?? 0;
 
+  const [over, setOver] = useState(false);
+  const pick = (f?: File | null) => {
+    if (f) void start(f);
+  };
+  const statusText =
+    phase === "preparing" ? "Menyiapkan…"
+    : phase === "uploading" ? "Mengunggah…"
+    : phase === "finishing" ? "Memverifikasi…"
+    : phase === "ready" ? "Potongan terverifikasi; antre di GitHub"
+    : phase === "processing" ? `GitHub: ${processingLabels[job?.stage ?? ""] ?? "Menunggu diproses"}`
+    : phase === "completed" ? (job?.commitSha ? "Unggahan selesai" : "Sudah terbaru")
+    : phase === "error" ? "Gagal"
+    : phase === "cancelled" ? "Dibatalkan"
+    : "";
+  const Wrapper = embedded ? "section" : "main";
   return (
-    <main className="wrap">
+    <Wrapper className={embedded ? "up" : "up page"}>
       <style>{CSS}</style>
-      <h1>Upload ZIP</h1>
-      <p className="muted">
-        Upload a ZIP up to 100 MiB to the selected GitHub repository. Track
-        progress here and in Telegram.
-      </p>
+      {!embedded && <h1>Unggah ZIP</h1>}
+      {!embedded && (
+        <p className="muted">
+          Unggah ZIP hingga 100 MiB ke repositori GitHub terpilih. Progres tampil di sini dan di Telegram.
+        </p>
+      )}
 
-      {notice && <p className="error">{notice}</p>}
+      {notice && <p className="error" role="alert">{notice}</p>}
 
       {token && (
         <>
-          <label className="file">
+          <label
+            className={`drop${over ? " over" : ""}${busy || !scope ? " disabled" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!busy && scope) setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              if (!busy && scope) pick(e.dataTransfer?.files?.[0]);
+            }}
+          >
             <input
-              aria-label="Choose ZIP file or select the same file to resume"
+              aria-label="Pilih file ZIP atau pilih file yang sama untuk melanjutkan"
               type="file"
               accept=".zip,application/zip"
               disabled={busy || !scope}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
-                if (f) void start(f);
+                pick(f);
               }}
             />
+            <strong>Seret file ZIP ke sini</strong>
+            <span>atau ketuk untuk memilih · maksimal 100 MiB</span>
           </label>
 
           {(job || scope) && (
             <div className="card">
-              <div className="row">
-                <span>Repository</span>
-                <span>{job?.repoFullName ?? scope?.repoFullName}</span>
-              </div>
-              <div className="row">
-                <span>Branch</span>
-                <span>{job?.branch ?? scope?.branch}</span>
-              </div>
+              <div className="row"><span>Repositori</span><span>{job?.repoFullName ?? scope?.repoFullName}</span></div>
+              <div className="row"><span>Branch</span><span>{job?.branch ?? scope?.branch}</span></div>
               <div className="row">
                 <span>File</span>
-                <span>
-                  {job?.fileName ??
-                    fileRef.current?.name ??
-                    "Choose a ZIP file"}
-                </span>
+                <span>{job?.fileName ?? fileRef.current?.name ?? "Belum dipilih"}</span>
               </div>
             </div>
           )}
 
           {phase !== "idle" && (
             <div className="card">
-              <div className="row">
-                <span>Status</span>
-                <span>
-                  {phase === "preparing" && "Preparing…"}
-                  {phase === "uploading" && "Uploading…"}
-                  {phase === "finishing" && "Verifying…"}
-                  {phase === "ready" && "Chunks verified; queued for GitHub"}
-                  {phase === "processing" &&
-                    `GitHub: ${processingLabels[job?.stage ?? ""] ?? "Queued for processing"}`}
-                  {phase === "completed" &&
-                    (job?.commitSha
-                      ? "Upload completed"
-                      : "Already up to date")}
-                  {phase === "error" && "Failed"}
-                  {phase === "cancelled" && "Cancelled"}
-                </span>
-              </div>
+              <div className="row"><span>Status</span><span>{statusText}</span></div>
               <div
                 className="bar"
-                aria-label="ZIP upload progress"
+                aria-label="Progres unggah ZIP"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -681,96 +710,72 @@ export default function Uploader() {
               >
                 <div style={{ width: `${pct}%` }} />
               </div>
+              <div className="row"><span>Progres</span><span>{total > 0 ? `${pct}%` : "—"}</span></div>
               <div className="row">
-                <span>Progress</span>
-                <span>{total > 0 ? `${pct}%` : "—"}</span>
+                <span>Terkirim</span>
+                <span>{total > 0 ? `${(bytesDone / MB).toFixed(1)} / ${(total / MB).toFixed(1)} MB` : "—"}</span>
               </div>
               <div className="row">
-                <span>Transferred</span>
-                <span>
-                  {total > 0
-                    ? `${(bytesDone / MB).toFixed(1)} / ${(total / MB).toFixed(1)} MB`
-                    : "—"}
-                </span>
-              </div>
-              <div className="row">
-                <span>Speed</span>
+                <span>Kecepatan</span>
                 <span>
                   {phase === "uploading"
                     ? speed !== null
                       ? `${(speed / MB).toFixed(1)} MB/s`
-                      : "measuring…"
+                      : "mengukur…"
                     : "—"}
                 </span>
               </div>
               <div className="row">
-                <span>Chunks</span>
-                <span>
-                  {chunkTotal > 0
-                    ? `${chunksDone} / ${chunkTotal} (${CHUNK_LIMITS.defaultBytes / MB} MB each)`
-                    : "—"}
-                </span>
+                <span>Potongan</span>
+                <span>{chunkTotal > 0 ? `${chunksDone} / ${chunkTotal} (${CHUNK_LIMITS.defaultBytes / MB} MB per potongan)` : "—"}</span>
               </div>
-              <div className="row">
-                <span>Parallel uploads</span>
-                <span>{phase === "uploading" ? concurrency : "—"}</span>
-              </div>
+              <div className="row"><span>Unggahan paralel</span><span>{phase === "uploading" ? concurrency : "—"}</span></div>
             </div>
           )}
 
           {phase === "ready" && (
             <p className="ok">
-              Your ZIP was received and queued for GitHub processing. You can
-              leave this page and follow progress in Telegram.
+              ZIP diterima dan masuk antrean pemrosesan GitHub. Anda boleh meninggalkan halaman ini; progres juga dikirim ke Telegram.
             </p>
           )}
           {(phase === "processing" || phase === "completed") && (
             <p className="muted">
-              Files processed: {job?.filesProcessed ?? 0} /{" "}
-              {job?.filesTotal ?? "—"}.{" "}
-              {phase === "completed" ? "Added" : "Planned added"}:{" "}
-              {job?.added ?? 0}, updated: {job?.updated ?? 0}, unchanged:{" "}
-              {job?.unchanged ?? 0}.
-              {phase !== "completed" &&
-                "Changes are not committed until GitHub confirms."}
+              File diproses: {job?.filesProcessed ?? 0} / {job?.filesTotal ?? "—"}.{" "}
+              {phase === "completed" ? "Ditambah" : "Rencana ditambah"}: {job?.added ?? 0}, diperbarui: {job?.updated ?? 0}, tidak berubah: {job?.unchanged ?? 0}.
+              {phase !== "completed" && " Perubahan belum di-commit sampai GitHub mengonfirmasi."}
             </p>
           )}
           {phase === "completed" && (
-            <p className="ok">
+            <p className="ok" role="status">
               {job?.commitSha ? (
                 <>
-                  GitHub confirmed commit {job.commitSha.slice(0, 7)}.{" "}
+                  <svg className="check" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  GitHub mengonfirmasi commit {job.commitSha.slice(0, 7)} di {job.repoFullName} ({job.branch}).{" "}
                   {job.commitUrl && (
-                    <a href={job.commitUrl} target="_blank" rel="noreferrer">
-                      View commit
-                    </a>
+                    <a href={job.commitUrl} target="_blank" rel="noreferrer">Lihat commit</a>
                   )}
                 </>
               ) : (
-                "Already up to date. No commit was created."
+                "Sudah terbaru. Tidak ada commit yang dibuat."
               )}
             </p>
           )}
-          {errorText && <p className="error">{errorText}</p>}
+          {errorText && <p className="error" role="alert">{errorText}</p>}
 
           <div className="actions">
             {busy && job?.canCancel !== false && (
-              <button className="btn" onClick={() => void cancel()}>
-                Cancel
+              <button className="btn" onClick={() => void cancel()}>Batal</button>
+            )}
+            {(phase === "error" || phase === "cancelled") && fileRef.current && (
+              <button className="btn primary" onClick={() => fileRef.current && void start(fileRef.current)}>
+                Coba lagi
               </button>
             )}
-            {(phase === "error" || phase === "cancelled") &&
-              fileRef.current && (
-                <button
-                  className="btn primary"
-                  onClick={() => fileRef.current && void start(fileRef.current)}
-                >
-                  Retry
-                </button>
-              )}
           </div>
         </>
       )}
-    </main>
+    </Wrapper>
   );
 }

@@ -205,7 +205,7 @@ it("uploads actual chunks and retries completion without sending bytes again", a
   const view = render(<Uploader />);
   await choose(view.container);
   await screen.findByText(
-    "Chunks verified; queued for GitHub",
+    "Potongan terverifikasi; antre di GitHub",
     {},
     { timeout: 10000 },
   );
@@ -228,7 +228,7 @@ it("reload resumes verified chunks using the same scoped file identity", async (
   const resumed = render(<Uploader />);
   await choose(resumed.container);
   await screen.findByText(
-    "Chunks verified; queued for GitHub",
+    "Potongan terverifikasi; antre di GitHub",
     {},
     { timeout: 10000 },
   );
@@ -240,8 +240,8 @@ it("cancel aborts active transfers and calls the current job endpoint", async ()
   const view = render(<Uploader />);
   await choose(view.container);
   await waitFor(() => expect(pending.size).toBeGreaterThan(0));
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  await screen.findByText("Upload cancelled.");
+  fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+  await screen.findByText("Unggahan dibatalkan.");
   expect(aborted).toBeGreaterThan(0);
   expect(cancelCalls).toBe(1);
   expect(pending.size).toBe(0);
@@ -251,7 +251,7 @@ it("replaces an expired local job key with a new key before uploading", async ()
   const view = render(<Uploader />);
   await choose(view.container);
   await screen.findByText(
-    "Chunks verified; queued for GitHub",
+    "Potongan terverifikasi; antre di GitHub",
     {},
     { timeout: 10000 },
   );

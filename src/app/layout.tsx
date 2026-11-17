@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
 
-export const metadata = { title: "GitHub Manager" };
+export const metadata: Metadata = {
+  title: { default: "Kyn-X · GitHub Manager", template: "%s · Kyn-X" },
+  description: "Kelola repositori GitHub, unggah proyek ZIP, dan pantau GitHub Actions lewat bot Telegram dan dashboard web.",
+};
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0c0d0f" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body style={{ background: "#121316", color: "#e6e6e6", fontFamily: "system-ui, sans-serif", margin: 0 }}>
-        {children}
-      </body>
+    <html lang="id">
+      <body>{children}</body>
     </html>
   );
 }
