@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEve
 import { formatBytes, formatTime, jobProgress, statusInfo } from "@/lib/web/format";
 import { useSession, ApiFail } from "./session";
 import type { Job } from "./hooks";
+export { SendFlow, type FlowState } from "./send-flow";
 
 const P: Record<string, string> = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -244,10 +245,9 @@ export function JobItem({ job, onChanged }: { job: Job; onChanged: () => void })
         <span className={`badge ${info.tone === "idle" ? "" : info.tone}`}>{info.label}</span>
       </div>
       <div className="meta">
-        <span className="mono" title={job.id}>{job.id.slice(0, 8)}</span>
         <span>{job.fileName ?? "ZIP"} · {formatBytes(job.totalBytes)}</span>
-        <span>{formatTime(job.createdAt)}</span>
-        {job.filesTotal != null && <span>{job.filesProcessed}/{job.filesTotal} file · +{job.added} ~{job.updated} ={job.unchanged}</span>}
+        <span title={job.id}>{formatTime(job.createdAt)}</span>
+        {info.open && job.filesTotal != null && <span>{job.filesProcessed}/{job.filesTotal} file</span>}
       </div>
       {info.open && job.status !== "created" && (
         <div
@@ -259,6 +259,7 @@ export function JobItem({ job, onChanged }: { job: Job; onChanged: () => void })
           {...(pct !== null ? { "aria-valuenow": pct } : {})}
         >
           <div style={pct !== null ? { width: `${pct}%` } : undefined} />
+          <i className="fly" aria-hidden="true" style={pct !== null ? { left: `${pct}%` } : undefined} />
         </div>
       )}
       {job.status === "failed" && job.error && <p className="muted" style={{ color: "var(--danger)" }}>{job.error}</p>}
