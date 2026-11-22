@@ -5,6 +5,8 @@ import { makeCtx, withGithub, type Ctx } from "./context";
 import { listAccessibleRepos, assertRepoAccessible } from "../github/repos";
 import { setSelectedRepo } from "./state";
 import { consumeRateLimit } from "../rate-limit";
+import { db } from "../db";
+import { githubRaw } from "../github/client";
 import { MENU_COMMANDS } from "./menu";
 import type { TgCallbackQuery } from "./types";
 
@@ -81,6 +83,40 @@ export async function handleCallback(
           : "Unable to cancel the upload. Try again.",
       );
     }
+    return;
+  }
+  // Build notification buttons.
+  const rerun = /^rerun:(\d{1,12}):(\d{1,14})$/.exec(cq.data ?? "");
+  if (rerun) {
+    await withGithub(ctx, "rerun_build", async (token) => {
+      const repo = await assertRepoAccessible(token, Number(rerun[1]));
+      await githubRaw(token, `/repos/${repo.fullName}/actions/runs/${rerun[2]}/rerun`, { method: "POST" });
+      await ctx.reply(`🔁 Build ulang dimulai: ${repo.fullName}`);
+    });
+    return;
+  }
+  const mute = /^(mute|unmute):(\d{1,12})$/.exec(cq.data ?? "");
+  if (mute) {
+    const on = mute[1] === "mute", repoId = Number(mute[2]);
+    try {
+      await db().query(
+        on
+          ? "insert into app.repo_mutes (telegram_user_id, github_repo_id) values ($1,$2) on conflict do nothing"
+          : "delete from app.repo_mutes where telegram_user_id=$1 and github_repo_id=$2",
+        [cq.from.id, repoId],
+      );
+      await ctx.reply(on ? "🔕 Repo dibisukan." : "🔔 Notifikasi repo aktif lagi.", {
+        inline_keyboard: [[on ? { text: "🔔 Aktifkan lagi", callback_data: `unmute:${repoId}` } : { text: "🔕 Bisukan", callback_data: `mute:${repoId}` }]],
+      });
+    } catch {
+      await ctx.reply("Fitur ini butuh migrasi database 0010_build_notify.sql.");
+    }
+    return;
+  }
+  const notif = /^notif:(all|daily)$/.exec(cq.data ?? "");
+  if (notif) {
+    const { toggleNotif } = await import("../builds/prefs");
+    await toggleNotif(ctx, notif[1] as "all" | "daily");
     return;
   }
   // Menu buttons run the same code path as the slash command they stand for.

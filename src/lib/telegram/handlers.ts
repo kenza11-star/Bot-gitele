@@ -348,6 +348,11 @@ export async function handleMessage(
       return;
     }
 
+    case "/notif": {
+      const { showNotif } = await import("../builds/prefs");
+      return showNotif(ctx);
+    }
+
     case "/logout": {
       // Revoke at GitHub when a usable token exists, then delete local material regardless.
       const cred = await getUsableToken(from.id, env).catch(() => null);

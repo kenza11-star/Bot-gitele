@@ -17,6 +17,7 @@ export const HELP_TEXT = [
   "/cancel - cancel a pending upload",
   "/actions - latest workflow runs for the selected repository",
   "/apk - download the newest APK from artifacts or the latest release",
+  "/notif - notifikasi build: nyala/mati dan ringkasan harian",
   "/logout - revoke and delete your GitHub credentials",
   "/help - show this help",
 ].join("\n");
