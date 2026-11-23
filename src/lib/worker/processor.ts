@@ -161,7 +161,7 @@ async function authorize(job: WorkerJob): Promise<string> {
   const cred = await getUsableToken(Number(job.telegram_user_id), loadEnv());
   if (!cred)
     throw new GithubAuthError(
-      "Connect your own GitHub account again using /login.",
+      "Log in to GitHub again from the bot menu.",
     );
   const repo = await assertRepoAccessible(cred.token, Number(job.repo_id));
   if (repo.fullName !== job.repo_full_name)
@@ -533,9 +533,9 @@ export async function processClaimedJob(
     const terminal = !transient || job.worker_failures >= 7;
     let reason =
       err instanceof GithubAuthError
-        ? "GitHub authentication expired or was disconnected. Send /login and retry."
+        ? "GitHub authentication expired or was disconnected. Log in again from the bot menu and retry."
         : err instanceof GithubNotFoundError
-          ? "Repository or branch is unavailable through your own GitHub App. Check /repos; initialize an empty repository before uploading."
+          ? "Repository or branch is unavailable through your own GitHub App. Check Repos in the bot menu; initialize an empty repository before uploading."
           : err instanceof UserFacingError
             ? err.message
             : transient

@@ -2,15 +2,22 @@ import { cancelJob, UploadError } from "../upload/service";
 import type { AppEnv } from "../env";
 import { answerCallbackQuery, type InlineKeyboard } from "./api";
 import { makeCtx, withGithub, type Ctx } from "./context";
-import { listAccessibleRepos, assertRepoAccessible } from "../github/repos";
+import { assertRepoAccessible } from "../github/repos";
 import { setSelectedRepo } from "./state";
 import { consumeRateLimit } from "../rate-limit";
 import { db } from "../db";
 import { githubRaw } from "../github/client";
 import { MENU_COMMANDS } from "./menu";
+import {
+  showApk,
+  showActions,
+  showMenu,
+  showRepo,
+  showRepos,
+  showSelectedRepo,
+  showUpload,
+} from "./views";
 import type { TgCallbackQuery } from "./types";
-
-export const REPO_PAGE_SIZE = 8;
 
 export type CallbackAction =
   | { kind: "repos"; page: number }
@@ -27,36 +34,6 @@ export function parseCallbackData(
     : { kind: "pick", repoId: n };
 }
 
-export async function showRepoPage(ctx: Ctx, page: number): Promise<void> {
-  await withGithub(ctx, "list_repos", async (token) => {
-    const repos = await listAccessibleRepos(token);
-    if (repos.length === 0) {
-      await ctx.reply(
-        `No repositories are available. Install the GitHub App on the repositories you want to manage:\nhttps://github.com/apps/${ctx.env.githubAppSlug}/installations/new`,
-      );
-      return;
-    }
-    const pages = Math.max(1, Math.ceil(repos.length / REPO_PAGE_SIZE));
-    const p = Math.min(Math.max(0, page), pages - 1);
-    const rows: { text: string; callback_data: string }[][] = repos
-      .slice(p * REPO_PAGE_SIZE, (p + 1) * REPO_PAGE_SIZE)
-      .map((r) => [
-        {
-          text: `${r.fullName}${r.private ? " (private)" : ""}`.slice(0, 60),
-          callback_data: `pick:${r.id}`,
-        },
-      ]);
-    const nav: { text: string; callback_data: string }[] = [];
-    if (p > 0) nav.push({ text: "Prev", callback_data: `repos:${p - 1}` });
-    if (p < pages - 1)
-      nav.push({ text: "Next", callback_data: `repos:${p + 1}` });
-    if (nav.length > 0) rows.push(nav);
-    await ctx.reply(`Select a repository (page ${p + 1} of ${pages}):`, {
-      inline_keyboard: rows,
-    });
-  });
-}
-
 export async function handleCallback(
   cq: TgCallbackQuery,
   env: AppEnv,
@@ -65,9 +42,9 @@ export async function handleCallback(
   const chatId = cq.message?.chat.id;
   if (!chatId || chatId !== cq.from.id) return;
 
-  const ctx = makeCtx(env, cq.from.id, chatId);
+  const ctx = makeCtx(env, cq.from.id, chatId, cq.message?.message_id ?? null);
   if (!(await consumeRateLimit(`tg:${cq.from.id}`, 30, 60))) {
-    await ctx.reply("Too many requests. Please wait a moment.");
+    await ctx.reply("⏳ Terlalu cepat, tunggu sebentar");
     return;
   }
 
@@ -75,12 +52,12 @@ export async function handleCallback(
   if (cancel) {
     try {
       await cancelJob(cq.from.id, cancel[1]);
-      await ctx.reply("Upload cancelled.");
+      await ctx.reply("🚫 Upload dibatalkan");
     } catch (e) {
       await ctx.reply(
         e instanceof UploadError
           ? e.message
-          : "Unable to cancel the upload. Try again.",
+          : "Gagal membatalkan, coba lagi.",
       );
     }
     return;
@@ -91,7 +68,7 @@ export async function handleCallback(
     await withGithub(ctx, "rerun_build", async (token) => {
       const repo = await assertRepoAccessible(token, Number(rerun[1]));
       await githubRaw(token, `/repos/${repo.fullName}/actions/runs/${rerun[2]}/rerun`, { method: "POST" });
-      await ctx.reply(`🔁 Build ulang dimulai: ${repo.fullName}`);
+      await ctx.reply(`🔁 ${repo.fullName}`);
     });
     return;
   }
@@ -119,9 +96,24 @@ export async function handleCallback(
     await toggleNotif(ctx, notif[1] as "all" | "daily");
     return;
   }
-  // Menu buttons run the same code path as the slash command they stand for.
+  // Menu buttons: screens are edited in place.
   const menu = /^menu:([a-z]{1,12})$/.exec(cq.data ?? "");
   if (menu) {
+    const screens: Record<string, (c: Ctx) => Promise<void>> = {
+      home: showMenu,
+      repo: showSelectedRepo,
+      upload: showUpload,
+      actions: showActions,
+      apk: showApk,
+    };
+    const screen = screens[menu[1]];
+    if (screen) {
+      await screen(ctx).catch(async (e) => {
+        console.error("menu", menu[1], e instanceof Error ? e.name : "unknown");
+        await ctx.reply("⚠️ Gagal, coba lagi");
+      });
+      return;
+    }
     const command = MENU_COMMANDS[menu[1]];
     if (!command) return;
     const { handleMessage } = await import("./handlers");
@@ -132,7 +124,7 @@ export async function handleCallback(
   if (!action) return;
 
   if (action.kind === "repos") {
-    await showRepoPage(ctx, action.page);
+    await showRepos(ctx, action.page);
     return;
   }
 
@@ -145,8 +137,6 @@ export async function handleCallback(
       repo.fullName,
       repo.defaultBranch,
     );
-    await ctx.reply(
-      `Selected ${repo.fullName} (branch: ${repo.defaultBranch}).\nUse /upload to send a ZIP, /actions for workflow runs, or /apk for the latest APK.`,
-    );
+    await showRepo(ctx, { fullName: repo.fullName, branch: repo.defaultBranch });
   });
 }

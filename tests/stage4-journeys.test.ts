@@ -157,7 +157,7 @@ const message = (id: number, text: string) =>
   );
 async function login(id: number, account: number) {
   await message(id, "/login");
-  const link = state.messages.at(-1).text.split("\n\n").at(-1);
+  const link = state.messages.at(-1).reply_markup.inline_keyboard[0][0].url;
   const nonce = new URL(link).searchParams.get("state")!;
   state.account = account;
   const result = await callback(
@@ -169,7 +169,7 @@ async function login(id: number, account: number) {
 }
 it("new public user can start, authenticate, select a private repository/branch and open scoped upload", async () => {
   await message(1, "/start");
-  expect(state.messages.at(-1).text).toContain("/login");
+  expect(state.messages.at(-1).reply_markup.inline_keyboard[0][0].text).toContain("Login");
   const { result, nonce } = await login(1, 101);
   expect(result.status).toBe(200);
   const replay = await callback(
@@ -191,6 +191,13 @@ it("new public user can start, authenticate, select a private repository/branch 
     },
     state.env,
   );
+  const card = state.messages.at(-1).reply_markup.inline_keyboard;
+  expect(card[0][0].url).toBe("https://github.com/owner/project");
+  expect(card[1].map((b: any) => b.callback_data)).toEqual([
+    "menu:upload",
+    "menu:actions",
+    "menu:apk",
+  ]);
   await message(1, "/branch develop");
   expect((await getUserState(1)).repoBranch).toBe("develop");
   await message(1, "/upload");
@@ -225,7 +232,9 @@ it("status, owner-only admin, Actions and release APK fallback are functional", 
   await message(999, "/admin");
   expect(state.messages.at(-1).text).toContain("Users:");
   await message(1, "/actions");
-  expect(state.messages.at(-1).text).toContain("Build #2");
+  expect(
+    state.messages.at(-1).reply_markup.inline_keyboard[0][0].text,
+  ).toContain("Build #2");
   await message(1, "/apk");
   expect(state.docs.at(-1).name).toBe("release.apk");
   expect([...state.docs.at(-1).bytes]).toEqual([1, 2, 3, 255]);

@@ -4,6 +4,8 @@ import { logActivity } from "../activity";
 import { getFilePath, downloadTelegramFile } from "./api";
 import { withGithub, type Ctx } from "./context";
 import { getUserState, setPending } from "./state";
+import { showRepos } from "./views";
+import { btn } from "./ui";
 import { assertRepoAccessible } from "../github/repos";
 import { commitFiles, extractZip } from "../github/upload";
 import { UPLOAD_LIMITS } from "../upload/limits";
@@ -40,16 +42,14 @@ export async function handleZipUpload(
   doc: TgDocument,
 ): Promise<void> {
   const state = await getUserState(ctx.telegramUserId);
-  if (!state.repoId) return ctx.reply("Select a repository first with /repos.");
+  if (!state.repoId) return showRepos(ctx, 0);
   if (state.pendingAction !== "await_zip" || !state.pendingActive) {
-    return ctx.reply("Send /upload first to start a ZIP upload.");
+    return ctx.reply("⬆️ Tekan Upload dulu", { inline_keyboard: [[btn("⬆️ Upload", "menu:upload", "success")]] });
   }
   if (!(doc.file_name ?? "").toLowerCase().endsWith(".zip"))
-    return ctx.reply("Please send a .zip file.");
+    return ctx.reply("📦 Kirim file .zip");
   if ((doc.file_size ?? 0) > UPLOAD_LIMITS.telegramArchiveBytes) {
-    return ctx.reply(
-      "This ZIP is larger than 20 MB, the Telegram bot download limit.",
-    );
+    return ctx.reply("📦 ZIP maks 20 MB di chat, pakai tombol Upload untuk file besar");
   }
 
   // One /upload authorizes one ZIP. Consume it before doing any work.
@@ -59,9 +59,7 @@ export async function handleZipUpload(
     [ctx.telegramUserId, state.repoId, state.repoBranch],
   );
   if (!consumed.rows.length)
-    return ctx.reply(
-      "This upload was already consumed or the selection changed. Send /upload again.",
-    );
+    return ctx.reply("⬆️ Sesi upload habis", { inline_keyboard: [[btn("⬆️ Upload", "menu:upload", "success")]] });
   const repoId = state.repoId;
   const botToken = ctx.env.telegramBotToken;
 

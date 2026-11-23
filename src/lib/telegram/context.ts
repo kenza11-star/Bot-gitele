@@ -1,5 +1,6 @@
 import type { AppEnv } from "../env";
-import { sendMessage, type InlineKeyboard } from "./api";
+import { sendMessage, editMessageText, type InlineKeyboard } from "./api";
+import { btn } from "./ui";
 import { getUsableToken, markCredentialExpired } from "../github/credentials";
 import { GithubAuthError, GithubNotFoundError, GithubRateLimitError, UserFacingError } from "../github/client";
 import { logActivity } from "../activity";
@@ -8,19 +9,42 @@ export interface Ctx {
   env: AppEnv;
   telegramUserId: number;
   chatId: number;
+  /** Message the tapped button belongs to; null for typed commands. */
+  messageId: number | null;
   reply(text: string, keyboard?: InlineKeyboard): Promise<void>;
+  /** Edits the tapped message in place; sends a new one when there is nothing to edit (typed command, photo card). */
+  show(text: string, keyboard: InlineKeyboard): Promise<void>;
 }
 
-export function makeCtx(env: AppEnv, telegramUserId: number, chatId: number): Ctx {
+export function makeCtx(
+  env: AppEnv,
+  telegramUserId: number,
+  chatId: number,
+  messageId: number | null = null,
+): Ctx {
   return {
     env,
     telegramUserId,
     chatId,
+    messageId,
     reply: async (text, keyboard) => {
+      await sendMessage(env.telegramBotToken, chatId, text, keyboard);
+    },
+    show: async (text, keyboard) => {
+      if (messageId !== null) {
+        try {
+          await editMessageText(env.telegramBotToken, chatId, messageId, text, keyboard);
+          return;
+        } catch {
+          /* photo card or message too old: send a fresh one instead */
+        }
+      }
       await sendMessage(env.telegramBotToken, chatId, text, keyboard);
     },
   };
 }
+
+const LOGIN_KEYBOARD: InlineKeyboard = { inline_keyboard: [[btn("🔐 Login", "menu:login", "primary")]] };
 
 /**
  * Runs a GitHub operation with the caller's own credentials and maps failures to safe messages.
@@ -33,7 +57,7 @@ export async function withGithub<T>(
 ): Promise<T | undefined> {
   const cred = await getUsableToken(ctx.telegramUserId, ctx.env);
   if (!cred) {
-    await ctx.reply("Connect your GitHub account first with /login.");
+    await ctx.reply("🔐 Login dulu", LOGIN_KEYBOARD);
     return undefined;
   }
 
@@ -43,14 +67,15 @@ export async function withGithub<T>(
     if (err instanceof GithubAuthError) {
       await markCredentialExpired(ctx.telegramUserId);
       await logActivity(ctx.telegramUserId, operation, "failure", "credential rejected");
-      await ctx.reply("Your GitHub session expired or was revoked. Send /login to reconnect.");
+      await ctx.reply("⚠️ Sesi GitHub habis", LOGIN_KEYBOARD);
     } else if (err instanceof GithubRateLimitError) {
       await logActivity(ctx.telegramUserId, operation, "failure", "rate limited");
       await ctx.reply("GitHub rate limit reached. Try again later.");
     } else if (err instanceof GithubNotFoundError) {
       await logActivity(ctx.telegramUserId, operation, "failure", "not found or not accessible");
       await ctx.reply(
-        "That repository or resource is not available to your GitHub App installation. Check /repos.",
+        "Repo tidak tersedia untuk GitHub App kamu.",
+        { inline_keyboard: [[btn("📁 Repos", "menu:repos", "primary")]] },
       );
     } else if (err instanceof UserFacingError) {
       await logActivity(ctx.telegramUserId, operation, "failure", err.message);

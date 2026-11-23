@@ -1,5 +1,4 @@
 import { getBranch, listBranches } from "../github/branches";
-import { UserFacingError } from "../github/client";
 import { cancelJob, UploadError } from "../upload/service";
 import type { AppEnv } from "../env";
 import { db } from "../db";
@@ -12,20 +11,11 @@ import { getActiveGithubLogin, unlinkGithubAccount } from "../github/linking";
 import { getUsableToken, revokeGrant } from "../github/credentials";
 import { assertRepoAccessible, listAccessibleRepos } from "../github/repos";
 import { cachedAccessibleRepos, matchRepos } from "../github/search";
-import {
-  listRuns,
-  findNewestArtifact,
-  findLatestApkAsset,
-  downloadBinary,
-  extractApk,
-  ARTIFACT_LIMIT,
-  SEND_LIMIT,
-} from "../github/actions";
 import { makeCtx, withGithub, type Ctx } from "./context";
-import { sendDocument, sendMessage } from "./api";
-import { loginKeyboard, sendProfileCard } from "./menu";
+import { sendMessage } from "./api";
+import { loginKeyboard, mainMenuKeyboard, sendProfileCard } from "./menu";
+import { backBtn, btn, link } from "./ui";
 import { dispatchProcessor } from "../actions-worker/dispatch";
-import { mintSessionToken } from "../upload/session";
 import { mintWebToken } from "../web/session";
 import {
   getUserState,
@@ -33,29 +23,10 @@ import {
   clearSelection,
   setSelectedRepo,
 } from "./state";
-import { showRepoPage } from "./callbacks";
+import { requireSelection, showActions, showApk, showMenu, showRepo, showRepos, showUpload } from "./views";
 import { handleZipUpload } from "./documents";
-import { HELP_TEXT, UNKNOWN_TEXT } from "./messages";
+import { UNKNOWN_TEXT } from "./messages";
 import type { TgMessage } from "./types";
-
-async function requireSelection(ctx: Ctx): Promise<{
-  repoId: number;
-  repoFullName: string;
-  repoBranch: string;
-  sessionVersion: number;
-} | null> {
-  const st = await getUserState(ctx.telegramUserId);
-  if (!st.repoId || !st.repoFullName) {
-    await ctx.reply("Select a repository first with /repos.");
-    return null;
-  }
-  return {
-    repoId: st.repoId,
-    repoFullName: st.repoFullName,
-    repoBranch: st.repoBranch ?? "",
-    sessionVersion: st.sessionVersion,
-  };
-}
 
 /** A queued job nobody has picked up for 3+ minutes means the dispatch was missed; nudge the processor once. */
 async function redispatchIfStalled(userId: number): Promise<void> {
@@ -78,77 +49,20 @@ async function cariCommand(ctx: Ctx, query: string): Promise<void> {
     const all = await cachedAccessibleRepos(ctx.telegramUserId, token);
     const hits = matchRepos(all, query, 8);
     if (hits.length === 0)
-      return ctx.reply(query ? `Tidak ada repo yang cocok dengan “${query}”.` : "Belum ada repositori yang diizinkan.");
-    await ctx.reply(`Hasil untuk “${query || "semua"}” (${hits.length} dari ${all.length}). Ketuk untuk memilih:`, {
-      inline_keyboard: hits.map((h) => [{ text: `${h.private ? "🔒 " : ""}${h.fullName}`.slice(0, 60), callback_data: `pick:${h.id}` }]),
+      return ctx.reply(query ? `📭 “${query}”` : "📭 Belum ada repo", { inline_keyboard: [[backBtn()]] });
+    await ctx.reply(`🔎 ${query || "semua"}`, {
+      inline_keyboard: [
+        ...hits.map((h) => [btn(`${h.private ? "🔒 " : ""}${h.fullName}`.slice(0, 60), `pick:${h.id}`, "primary")]),
+        [backBtn()],
+      ],
     });
   });
-}
-
-async function sendLatestApk(
-  ctx: Ctx,
-  token: string,
-  fullName: string,
-): Promise<void> {
-  const botToken = ctx.env.telegramBotToken;
-
-  const artifact = await findNewestArtifact(token, fullName);
-  let fallbackZip: Uint8Array | null = null;
-  let artifactProblem: string | null = null;
-  if (artifact) {
-    try {
-      const zip = await downloadBinary(
-        token,
-        artifact.archive_download_url,
-        ARTIFACT_LIMIT,
-      );
-      const apk = extractApk(zip);
-      if (apk)
-        return sendDocument(
-          botToken,
-          ctx.chatId,
-          apk.name,
-          apk.data,
-          `APK from artifact "${artifact.name}"`,
-        );
-      if (zip.length <= SEND_LIMIT) fallbackZip = zip;
-    } catch (e) {
-      if (!(e instanceof UserFacingError)) throw e;
-      artifactProblem = e.message;
-    }
-  }
-  const asset = await findLatestApkAsset(token, fullName);
-  if (asset) {
-    if (asset.size > SEND_LIMIT)
-      return ctx.reply(
-        "The release APK is larger than the 50 MiB Telegram send limit. Download it from the GitHub release page.",
-      );
-    const data = await downloadBinary(token, asset.url, SEND_LIMIT);
-    return sendDocument(
-      botToken,
-      ctx.chatId,
-      asset.name,
-      data,
-      "APK from the latest release",
-    );
-  }
-  if (fallbackZip && artifact)
-    return sendDocument(
-      botToken,
-      ctx.chatId,
-      `${artifact.name}.zip`,
-      fallbackZip,
-      "Artifact (no APK found inside)",
-    );
-  if (artifactProblem) return ctx.reply(artifactProblem);
-
-  await ctx.reply("No APK found in the newest artifact or the latest release.");
 }
 
 /** Sends a message whose only button is Login; the OAuth callback later turns it into Success/Failed. */
 async function sendLoginPrompt(ctx: Ctx, text: string): Promise<void> {
   if (!(await consumeRateLimit(`login:${ctx.telegramUserId}`, 5, 600))) {
-    return ctx.reply("Too many login attempts. Try again in a few minutes.");
+    return ctx.reply("⏳ Terlalu sering, coba lagi nanti");
   }
   const state = await createLoginState(ctx.telegramUserId);
   const messageId = await sendMessage(
@@ -176,7 +90,7 @@ async function showHome(ctx: Ctx): Promise<void> {
   }
   return sendLoginPrompt(
     ctx,
-    "Welcome to GitHub Manager!\n\nTap Login to connect your GitHub account. The link works once and expires in 10 minutes.",
+    "👋 GitHub Manager",
   );
 }
 
@@ -197,14 +111,12 @@ export async function handleMessage(
   );
 
   if (!(await consumeRateLimit(`tg:${from.id}`, 30, 60))) {
-    return ctx.reply("Too many requests. Please wait a moment and try again.");
+    return ctx.reply("⏳ Terlalu cepat, tunggu sebentar");
   }
 
   // GitHub account links, private repositories and signed upload capabilities stay in DMs.
   if (msg.chat.id !== from.id) {
-    return ctx.reply(
-      "Use a private chat with this bot for GitHub commands and uploads.",
-    );
+    return ctx.reply("💬 Pakai chat pribadi dengan bot ini");
   }
   if (msg.document) return handleZipUpload(ctx, msg.document);
 
@@ -218,45 +130,46 @@ export async function handleMessage(
     case "/start":
       return showHome(ctx);
     case "/help":
-      return ctx.reply(HELP_TEXT);
+    case "/menu":
+      return showMenu(ctx);
 
     case "/login": {
       return sendLoginPrompt(
         ctx,
-        "Tap Login to connect your GitHub account. The link works once and expires in 10 minutes.",
+        "🔐 Login GitHub",
       );
     }
 
     case "/web":
     case "/dashboard": {
       if (!(await consumeRateLimit(`web-link:${from.id}`, 5, 600)))
-        return ctx.reply("Too many dashboard links requested. Try again in a few minutes.");
+        return ctx.reply("⏳ Terlalu sering, coba lagi nanti");
       const v = await db().query<{ upload_session_version: number }>(
         "select upload_session_version from app.telegram_users where id=$1",
         [from.id],
       );
       const token = mintWebToken(from.id, env.encryptionKey, v.rows[0]?.upload_session_version ?? 0);
-      return ctx.reply(
-        "Open the dashboard with the button below. The link signs you in for 8 hours; do not forward it.",
-        { inline_keyboard: [[{ text: "Open dashboard", url: `${env.appUrl}/app#t=${token}` }]] },
-      );
+      return ctx.reply("🌐 Dashboard · 8 jam, jangan di-forward", {
+        inline_keyboard: [
+          [link("🌐 Buka Dashboard", `${env.appUrl}/app#t=${token}`, "success")],
+          [backBtn()],
+        ],
+      });
     }
 
     case "/status": {
       const login = await getActiveGithubLogin(from.id);
       const st = await getUserState(from.id);
-      const account = login
-        ? `Connected GitHub account: ${login}`
-        : "No GitHub account connected. Send /login.";
-      const repo = st.repoFullName
-        ? `Selected repository: ${st.repoFullName}`
-        : "No repository selected. Use /repos.";
       await redispatchIfStalled(from.id);
-      return ctx.reply(`${account}\n${repo}`);
+      const text = [
+        login ? `🐙 ${login}` : "🔐 Belum login",
+        st.repoFullName ? `📦 ${st.repoFullName}${st.repoBranch ? ` · ${st.repoBranch}` : ""}` : "📦 Belum pilih repo",
+      ].join("\n");
+      return ctx.reply(text, { inline_keyboard: [[backBtn()]] });
     }
 
     case "/repos":
-      return showRepoPage(ctx, 0);
+      return showRepos(ctx, 0);
 
     case "/branch":
     case "/branches": {
@@ -268,47 +181,17 @@ export async function handleMessage(
         if (!name) {
           const branches = await listBranches(token, sel.repoFullName);
           return ctx.reply(
-            `Current branch: ${sel.repoBranch}\nAvailable branches (first 30):\n${branches.join("\n")}\n\nSend /branch branch-name to select an existing branch.`,
+            `🌿 ${sel.repoBranch}\n\n${branches.join("\n")}\n\n/branch nama`,
           );
         }
         const branch = await getBranch(token, sel.repoFullName, name);
         await setSelectedRepo(from.id, sel.repoId, sel.repoFullName, branch);
-        await ctx.reply(
-          `Selected ${sel.repoFullName} — branch: ${branch}. Send /upload to continue.`,
-        );
+        await showRepo(ctx, { fullName: sel.repoFullName, branch });
       });
       return;
     }
-    case "/upload": {
-      const sel = await requireSelection(ctx);
-      if (!sel) return;
-      const cred = await getUsableToken(from.id, env);
-      if (!cred)
-        return ctx.reply("Connect your GitHub account first with /login.");
-      await assertRepoAccessible(cred.token, sel.repoId);
-      await setPending(from.id, "await_zip", 10);
-      const session = mintSessionToken(from.id, env.encryptionKey, Date.now(), {
-        repoId: sel.repoId,
-        repoFullName: sel.repoFullName,
-        branch: sel.repoBranch,
-        sessionVersion: sel.sessionVersion,
-      });
-      return ctx.reply(
-        `Repository: ${sel.repoFullName}\nBranch: ${sel.repoBranch}\n\n` +
-          "Tap the button to upload a ZIP of up to 100 MB in your browser. The link expires in 30 minutes.\n\n" +
-          "Or send a .zip of up to 20 MB directly in this chat within 10 minutes.",
-        {
-          inline_keyboard: [
-            [
-              {
-                text: "Upload ZIP (up to 100 MB)",
-                url: `${env.appUrl}/upload#t=${session}`,
-              },
-            ],
-          ],
-        },
-      );
-    }
+    case "/upload":
+      return showUpload(ctx);
 
     case "/cancel": {
       await setPending(from.id, null, 0);
@@ -322,46 +205,22 @@ export async function handleMessage(
             )
           ).rows;
       if (!rows[0])
-        return ctx.reply("No active upload. Pending upload cancelled.");
+        return ctx.reply("🚫 Tidak ada upload aktif");
       try {
         await cancelJob(from.id, rows[0].id);
-        return ctx.reply("Upload cancelled.");
+        return ctx.reply("🚫 Upload dibatalkan");
       } catch (e) {
         return ctx.reply(
-          e instanceof UploadError ? e.message : "Unable to cancel. Try again.",
+          e instanceof UploadError ? e.message : "Gagal membatalkan, coba lagi.",
         );
       }
     }
 
-    case "/actions": {
-      const sel = await requireSelection(ctx);
-      if (!sel) return;
-      await withGithub(ctx, "actions", async (token) => {
-        await assertRepoAccessible(token, sel.repoId);
-        const runs = await listRuns(token, sel.repoFullName);
-        if (runs.length === 0) return ctx.reply("No workflow runs found.");
-        return ctx.reply(
-          runs
-            .map(
-              (r) =>
-                `${r.name} #${r.runNumber} (${r.branch}, ${r.sha})\n${r.label}\n${r.url}`,
-            )
-            .join("\n\n"),
-        );
-      });
-      return;
-    }
+    case "/actions":
+      return showActions(ctx);
 
-    case "/apk": {
-      const sel = await requireSelection(ctx);
-      if (!sel) return;
-      await withGithub(ctx, "apk_download", async (token) => {
-        await assertRepoAccessible(token, sel.repoId);
-        await sendLatestApk(ctx, token, sel.repoFullName);
-        await logActivity(from.id, "apk_download", "success");
-      });
-      return;
-    }
+    case "/apk":
+      return showApk(ctx);
 
     case "/cari":
       return cariCommand(ctx, (msg.text ?? "").replace(/^\/cari(@\S+)?/i, "").trim());
@@ -386,17 +245,17 @@ export async function handleMessage(
         "success",
         revoked ? undefined : "grant not confirmed revoked",
       );
-      if (removed === 0) return ctx.reply("No GitHub account is connected.");
+      if (removed === 0) return ctx.reply("🔐 Belum login", { inline_keyboard: [[btn("🔐 Login", "menu:login", "primary")]] });
       return ctx.reply(
         revoked
-          ? "Your GitHub account was disconnected, the grant was revoked, and the stored token was deleted."
-          : "Your GitHub account was disconnected and the stored token was deleted. GitHub did not confirm revocation; you can also revoke the app in your GitHub settings.",
+          ? "👋 Akun diputus, token dihapus"
+          : "👋 Akun diputus, token dihapus\n⚠️ GitHub belum konfirmasi pencabutan, cabut manual di GitHub Settings.",
       );
     }
 
     case "/admin": {
       // Non-admins get the generic reply so the command is not revealed.
-      if (!isAdmin(env, String(from.id))) return ctx.reply(UNKNOWN_TEXT);
+      if (!isAdmin(env, String(from.id))) return ctx.reply(UNKNOWN_TEXT, mainMenuKeyboard());
       const { rows } = await db().query<{ users: string; connected: string }>(
         `select (select count(*) from app.telegram_users) as users,
                 (select count(*) from app.github_identities where disconnected_at is null) as connected`,
@@ -407,6 +266,8 @@ export async function handleMessage(
     }
 
     default:
-      return ctx.reply(command.startsWith("/") ? UNKNOWN_TEXT : HELP_TEXT);
+      return command.startsWith("/")
+        ? ctx.reply(UNKNOWN_TEXT, mainMenuKeyboard())
+        : showMenu(ctx);
   }
 }

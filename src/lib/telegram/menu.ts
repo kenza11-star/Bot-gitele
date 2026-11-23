@@ -1,6 +1,7 @@
 import type { AppEnv } from "../env";
 import type { GithubProfile } from "../github/oauth";
 import { sendMessage, sendPhoto, editMessageText, type InlineKeyboard } from "./api";
+import { btn } from "./ui";
 
 /** Button that opens the GitHub authorization page. */
 export function loginKeyboard(url: string): InlineKeyboard {
@@ -13,44 +14,34 @@ export function loginResultKeyboard(ok: boolean): InlineKeyboard {
     inline_keyboard: [
       [
         ok
-          ? { text: "✅ Success", callback_data: "noop" }
-          : { text: "❌ Failed — tap to retry", callback_data: "menu:login" },
+          ? { text: "✅ Berhasil", callback_data: "noop" }
+          : { text: "❌ Gagal — coba lagi", callback_data: "menu:login" },
       ],
     ],
   };
 }
 
-/** Buttons shown under the profile card. Each maps to the matching slash command. */
+/** Main menu: green / blue / red rows. Every button is a callback handled in callbacks.ts. */
 export function mainMenuKeyboard(): InlineKeyboard {
   return {
     inline_keyboard: [
+      [btn("📁 Repos", "repos:0", "success"), btn("🌐 Dashboard", "menu:web", "success")],
       [
-        { text: "📁 Repos", callback_data: "menu:repos" },
-        { text: "⬆️ Upload", callback_data: "menu:upload" },
+        btn("⬆️ Upload", "menu:upload", "primary"),
+        btn("⚙️ Actions", "menu:actions", "primary"),
+        btn("📱 APK", "menu:apk", "primary"),
       ],
-      [
-        { text: "📊 Status", callback_data: "menu:status" },
-        { text: "⚙️ Actions", callback_data: "menu:actions" },
-      ],
-      [
-        { text: "📱 APK", callback_data: "menu:apk" },
-        { text: "🌐 Dashboard", callback_data: "menu:web" },
-      ],
-      [{ text: "❓ Help", callback_data: "menu:help" }],
+      [btn("📊 Status", "menu:status", "danger"), btn("🔔 Notif", "menu:notif", "danger")],
     ],
   };
 }
 
-/** callback_data of a menu button -> the command handleMessage already implements. */
+/** Menu buttons that still reuse the slash-command handlers (they send a fresh message). */
 export const MENU_COMMANDS: Record<string, string> = {
   login: "/login",
-  repos: "/repos",
-  upload: "/upload",
-  status: "/status",
-  actions: "/actions",
-  apk: "/apk",
   web: "/web",
-  help: "/help",
+  status: "/status",
+  notif: "/notif",
 };
 
 export function buildProfileCard(p: GithubProfile, accessibleRepos: number | null): string {

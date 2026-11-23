@@ -118,7 +118,7 @@ export function notificationText(job: NoticeJob, now = Date.now()): string {
   } else if (["failed", "expired"].includes(job.status))
     lines.push(
       "",
-      `Failure: ${job.error ?? (job.status === "expired" ? "Upload expired. Open /upload privately and choose the file again." : "Processing failed; inspect worker logs with this job ID.")}`,
+      `Failure: ${job.error ?? (job.status === "expired" ? "Upload expired. Tap Upload in the bot and choose the file again." : "Processing failed; inspect worker logs with this job ID.")}`,
     );
   else if (job.status === "cancelled")
     lines.push("Cancelled. No further GitHub operations will be started.");

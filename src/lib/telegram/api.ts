@@ -1,6 +1,16 @@
 import { readBounded } from "../http/bounded";
+/** Button colors (Bot API 9.4+): blue, green, red. Older clients simply show the default look. */
+export type ButtonStyle = "primary" | "success" | "danger";
+
+export interface InlineButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+  style?: ButtonStyle;
+}
+
 export interface InlineKeyboard {
-  inline_keyboard: { text: string; callback_data?: string; url?: string }[][];
+  inline_keyboard: InlineButton[][];
 }
 
 export class TelegramApiError extends Error {
