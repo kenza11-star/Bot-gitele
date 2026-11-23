@@ -11,6 +11,7 @@ import { authorizeUrl, fetchGithubProfile } from "../github/oauth";
 import { getActiveGithubLogin, unlinkGithubAccount } from "../github/linking";
 import { getUsableToken, revokeGrant } from "../github/credentials";
 import { assertRepoAccessible, listAccessibleRepos } from "../github/repos";
+import { cachedAccessibleRepos, matchRepos } from "../github/search";
 import {
   listRuns,
   findNewestArtifact,
@@ -68,6 +69,20 @@ async function redispatchIfStalled(userId: number): Promise<void> {
   } catch {
     /* best effort */
   }
+}
+
+/** /cari <kata>: finds repositories the GitHub App can reach. Tapping a result selects it. */
+async function cariCommand(ctx: Ctx, query: string): Promise<void> {
+  if (query.length > 100) return ctx.reply("Kata pencarian terlalu panjang.");
+  await withGithub(ctx, "search_repos", async (token) => {
+    const all = await cachedAccessibleRepos(ctx.telegramUserId, token);
+    const hits = matchRepos(all, query, 8);
+    if (hits.length === 0)
+      return ctx.reply(query ? `Tidak ada repo yang cocok dengan “${query}”.` : "Belum ada repositori yang diizinkan.");
+    await ctx.reply(`Hasil untuk “${query || "semua"}” (${hits.length} dari ${all.length}). Ketuk untuk memilih:`, {
+      inline_keyboard: hits.map((h) => [{ text: `${h.private ? "🔒 " : ""}${h.fullName}`.slice(0, 60), callback_data: `pick:${h.id}` }]),
+    });
+  });
 }
 
 async function sendLatestApk(
@@ -347,6 +362,9 @@ export async function handleMessage(
       });
       return;
     }
+
+    case "/cari":
+      return cariCommand(ctx, (msg.text ?? "").replace(/^\/cari(@\S+)?/i, "").trim());
 
     case "/notif": {
       const { showNotif } = await import("../builds/prefs");

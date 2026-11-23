@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useApi, type Job, type Me } from "./hooks";
 import { CountUp, ErrorNotice, JobItem, NotLinked, ProfileCard, SendFlow, type FlowState } from "./ui";
 import { jobProgress, statusInfo } from "@/lib/web/format";
+import { RepoSearch } from "./repo-search";
 
 export default function Dashboard() {
   const me = useApi<Me>("/api/web/me");
@@ -43,6 +44,7 @@ export default function Dashboard() {
             side={{ label: "Ubah repositori", href: "/app/github", icon: "edit" }}
           />
           <div className="stack">
+            <RepoSearch selectedId={me.data.selection?.repoId ?? null} onPicked={me.reload} />
             <section className="tg-hero" aria-label="Pengiriman terakhir">
               <SendFlow state={flow} pct={pct ?? undefined} />
               <div className="tg-hero-line">
