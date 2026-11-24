@@ -13,6 +13,11 @@ export async function cachedAccessibleRepos(userId: number, token: string): Prom
   return repos;
 }
 
+/** Forget the cached repo list (after a rename or delete). */
+export function invalidateRepoCache(userId: number): void {
+  cache.delete(userId);
+}
+
 function inOrder(text: string, needle: string): boolean {
   let i = 0;
   for (const c of text) if (c === needle[i] && ++i === needle.length) return true;

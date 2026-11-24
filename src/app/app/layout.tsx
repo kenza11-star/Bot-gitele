@@ -10,7 +10,7 @@ const NAV = [
   { href: "/app", label: "Dasbor", icon: "home" },
   { href: "/app/upload", label: "Unggah", icon: "upload" },
   { href: "/app/activity", label: "Aktivitas", icon: "list" },
-  { href: "/app/github", label: "GitHub", icon: "git" },
+  { href: "/app/github", label: "Cari", icon: "search" },
   { href: "/app/settings", label: "Pengaturan", icon: "cog" },
 ] as const;
 

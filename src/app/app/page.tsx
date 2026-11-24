@@ -41,7 +41,7 @@ export default function Dashboard() {
               { icon: "pulse", tone: "var(--accent)", value: open.length, label: "Berjalan" },
             ]}
             cta={{ label: "Aktivitas", href: "/app/activity" }}
-            side={{ label: "Ubah repositori", href: "/app/github", icon: "edit" }}
+            side={{ label: "Cari di GitHub", href: "/app/github", icon: "search" }}
           />
           <div className="stack">
             <RepoSearch selectedId={me.data.selection?.repoId ?? null} onPicked={me.reload} />

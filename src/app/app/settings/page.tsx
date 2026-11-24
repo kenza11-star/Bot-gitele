@@ -9,6 +9,12 @@ export default function Settings() {
   const me = useApi<Me>("/api/web/me");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const disconnect = async () => {
+    if (!window.confirm("Putuskan akun GitHub? Token tersimpan dihapus, otorisasi dicabut di GitHub bila memungkinkan, dan unggahan yang belum dipublikasikan dibatalkan.")) return;
+    setBusy(true); setErr(null);
+    try { await call("POST", "/api/web/disconnect", {}); signOut(); }
+    catch (e) { setErr(e instanceof ApiFail ? e.message : "Gagal memutuskan akun."); setBusy(false); }
+  };
   const revokeAll = async () => {
     if (!window.confirm("Cabut semua sesi dashboard dan tautan unggah yang pernah dikirim bot? Anda perlu mengirim /web lagi.")) return;
     setBusy(true); setErr(null);
@@ -28,6 +34,17 @@ export default function Settings() {
           </div>
         </div>
       </section>
+      {me.data?.github && (
+        <section className="panel" aria-labelledby="akun"><header><h2 id="akun">Akun GitHub</h2><span className="badge ok">Terhubung</span></header>
+          <div className="body stack">
+            <dl className="kv">
+              <dt>Akun</dt><dd>{me.data.github.login}</dd>
+              <dt>Instalasi</dt><dd><a href={me.data.installUrl} target="_blank" rel="noreferrer">Kelola repositori yang diizinkan</a></dd>
+            </dl>
+            <div><button className="btn danger" disabled={busy} onClick={() => void disconnect()}>Putuskan GitHub</button></div>
+          </div>
+        </section>
+      )}
       <section className="panel" aria-labelledby="proses"><header><h2 id="proses">Pemrosesan ZIP</h2></header>
         <div className="body"><dl className="kv">
           <dt>Mesin</dt><dd>Langsung di server; GitHub Actions hanya cadangan bila proses terputus</dd>

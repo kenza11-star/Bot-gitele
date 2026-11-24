@@ -1,79 +1,98 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSession, ApiFail } from "../session";
 import { useApi, type Me } from "../hooks";
-import { ErrorNotice, NotLinked, ProfileCard } from "../ui";
+import { ErrorNotice, Icon, NotLinked } from "../ui";
 
-interface Repo { id: number; fullName: string; defaultBranch: string; private: boolean }
+interface Hit { id: number; fullName: string; description: string | null; stars: number; language: string | null; url: string; avatar: string }
 
-export default function GithubPage() {
-  const { call, signOut } = useSession();
+const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+
+/** Live search across ALL public repositories on GitHub. Each keystroke (debounced) refreshes the list. */
+export default function GithubSearchPage() {
+  const { call } = useSession();
   const me = useApi<Me>("/api/web/me");
-  const repos = useApi<{ repos: Repo[] }>("/api/web/repos");
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<Hit[]>([]);
+  const [total, setTotal] = useState(0);
+  const [gen, setGen] = useState(0);
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState<number | "disconnect" | null>(null);
-  const pick = async (r: Repo) => {
-    setBusy(r.id); setErr(null);
-    try { await call("POST", "/api/web/selection", { repoId: r.id }); await me.reload(); }
-    catch (e) { setErr(e instanceof ApiFail ? e.message : "Gagal memilih repositori."); }
-    finally { setBusy(null); }
-  };
-  const disconnect = async () => {
-    if (!window.confirm("Putuskan akun GitHub? Token tersimpan dihapus, otorisasi dicabut di GitHub bila memungkinkan, dan unggahan yang belum dipublikasikan dibatalkan.")) return;
-    setBusy("disconnect"); setErr(null);
-    try { await call("POST", "/api/web/disconnect", {}); signOut(); }
-    catch (e) { setErr(e instanceof ApiFail ? e.message : "Gagal memutuskan akun."); setBusy(null); }
-  };
-  const selected = me.data?.selection?.repoId;
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (!term) {
+      setHits([]);
+      setTotal(0);
+      setStatus("idle");
+      setErr(null);
+      return;
+    }
+    let live = true;
+    const ctl = new AbortController();
+    setStatus("loading");
+    // GitHub search allows ~30 requests/minute, so wait a beat after the last keystroke.
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await call<{ items: Hit[]; total: number }>("GET", `/api/web/github-search?q=${encodeURIComponent(term)}`, undefined, ctl.signal);
+        if (!live) return;
+        setHits(r.items);
+        setTotal(r.total);
+        setGen((g) => g + 1);
+        setStatus("done");
+        setErr(null);
+      } catch (e) {
+        if (!live || (e instanceof DOMException && e.name === "AbortError")) return;
+        setStatus("error");
+        setErr(e instanceof ApiFail ? e.message : "Pencarian gagal. Coba lagi.");
+      }
+    }, 280);
+    return () => {
+      live = false;
+      ctl.abort();
+      window.clearTimeout(t);
+    };
+  }, [q, call]);
+
   return (
     <div className="stack">
-      <div className="page-head"><div><h1>Integrasi GitHub</h1><p>Akun terhubung dan repositori yang diizinkan GitHub App Anda.</p></div></div>
+      <div className="page-head"><div><h1>Cari di GitHub</h1><p>Cari semua repositori publik di GitHub berdasarkan nama.</p></div></div>
       <ErrorNotice error={me.error} />
-      <ErrorNotice error={err} />
       {me.data && !me.data.github && <NotLinked installUrl={me.data.installUrl} />}
       {me.data?.github && (
-        <>
-          <div className="dash">
-            <ProfileCard
-              login={me.data.github.login}
-              subtitle="Akun GitHub terhubung"
-              chip={me.data.selection?.repoFullName.split("/").pop() ?? null}
-              caption="Repositori yang diizinkan"
-              stats={[
-                { icon: "repo", tone: "var(--accent)", value: repos.data?.repos.length ?? 0, label: "Total" },
-                { icon: "lock", tone: "var(--warning)", value: repos.data?.repos.filter((r) => r.private).length ?? 0, label: "Privat" },
-                { icon: "globe", tone: "var(--success)", value: repos.data?.repos.filter((r) => !r.private).length ?? 0, label: "Publik" },
-              ]}
-              cta={{ label: "Kelola repositori yang diizinkan", href: me.data.installUrl, external: true }}
-              side={{ label: "Buka profil GitHub", href: `https://github.com/${encodeURIComponent(me.data.github.login)}`, icon: "ext", external: true }}
-            />
-            <section className="panel" aria-labelledby="akun"><header><h2 id="akun">Akun</h2><span className="badge ok">Terhubung</span></header>
-              <div className="body"><dl className="kv">
-                <dt>Akun GitHub</dt><dd>{me.data.github.login}</dd>
-                <dt>Instalasi</dt><dd><a href={me.data.installUrl} target="_blank" rel="noreferrer">Kelola repositori yang diizinkan</a></dd>
-                <dt>Hubungkan ulang</dt><dd className="muted">Kirim <code>/login</code> di Telegram untuk otorisasi baru (tautan sekali pakai, 10 menit).</dd>
-              </dl></div>
-            </section>
+        <section className="panel rs" aria-labelledby="gs-title">
+          <header><h2 id="gs-title">Pencarian</h2>{status === "done" && <span className="muted rs-count">{total.toLocaleString("id-ID")} hasil</span>}</header>
+          <div className="body rs-body">
+            <label className={`rs-box${status === "loading" ? " busy" : ""}`} onClick={() => input.current?.focus()}>
+              <Icon name="search" />
+              <input ref={input} type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ketik nama repo…" autoComplete="off" autoCapitalize="none" spellCheck={false} aria-label="Cari repositori publik GitHub" autoFocus />
+              {q && <button type="button" className="rs-clear" aria-label="Hapus pencarian" onClick={() => { setQ(""); input.current?.focus(); }}>×</button>}
+            </label>
+            {err && <p className="rs-err" role="alert">{err}</p>}
+            <ul className={`gs-list${status === "loading" ? " dim" : ""}`} key={gen}>
+              {hits.map((h, i) => (
+                <li key={h.id} className="rs-row" style={{ "--i": Math.min(i, 12) } as CSSProperties}>
+                  <a className="gs-item" href={h.url} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={h.avatar} alt="" width={36} height={36} loading="lazy" />
+                    <span className="gs-body">
+                      <span className="gs-name">{h.fullName}</span>
+                      {h.description && <span className="gs-desc">{h.description}</span>}
+                      <span className="gs-meta">
+                        <span><Icon name="star" />{compact(h.stars)}</span>
+                        {h.language && <span>{h.language}</span>}
+                      </span>
+                    </span>
+                    <Icon name="ext" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {status === "idle" && <div className="rs-empty">Mulai mengetik, hasil muncul di sini.</div>}
+            {status === "done" && hits.length === 0 && <div className="rs-empty">Tidak ada repo publik yang cocok dengan “{q.trim()}”.</div>}
           </div>
-          <section className="panel" aria-labelledby="repo">
-            <header><h2 id="repo">Repositori</h2></header>
-            {repos.error && <div className="body"><ErrorNotice error={repos.error} /></div>}
-            {repos.loading ? <div className="empty">Memuat…</div> : repos.data && repos.data.repos.length === 0 ? (
-              <div className="empty"><strong>Tidak ada repositori yang diizinkan</strong><a href={me.data.installUrl} target="_blank" rel="noreferrer">Instal GitHub App pada repositori</a></div>
-            ) : (
-              <ul className="rows">{repos.data?.repos.map((r) => (
-                <li key={r.id}><div className="top">
-                  <span><strong>{r.fullName}</strong> <span className="muted">· {r.private ? "privat" : "publik"} · {r.defaultBranch}</span></span>
-                  {selected === r.id ? <span className="badge ok">Terpilih</span> : <button className="btn sm" disabled={busy !== null} onClick={() => void pick(r)}>{busy === r.id ? "Memilih…" : "Pilih"}</button>}
-                </div></li>
-              ))}</ul>
-            )}
-          </section>
-          <section className="panel" aria-labelledby="putus"><header><h2 id="putus">Putuskan akun</h2></header>
-            <div className="body stack"><p className="muted">Menghapus token tersimpan dan mencabut sesi web. Anda bisa menghubungkan lagi kapan saja lewat <code>/login</code>.</p>
-              <div><button className="btn danger" disabled={busy !== null} onClick={() => void disconnect()}>{busy === "disconnect" ? "Memutuskan…" : "Putuskan GitHub"}</button></div></div>
-          </section>
-        </>
+        </section>
       )}
     </div>
   );
